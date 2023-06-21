@@ -6,10 +6,10 @@
 //! Module that provides all settings of SWS.
 //!
 
+use clap::Parser;
 use globset::{Glob, GlobMatcher};
 use headers::HeaderMap;
 use hyper::StatusCode;
-use structopt::StructOpt;
 
 use crate::{Context, Result};
 
@@ -68,7 +68,7 @@ pub struct Settings {
 impl Settings {
     /// Handles CLI and config file options and converging them into one.
     pub fn get() -> Result<Settings> {
-        let opts = General::from_args();
+        let opts = General::parse();
 
         // Define the general CLI/file options
         let mut host = opts.host;
@@ -85,25 +85,45 @@ impl Settings {
 
         let mut page404 = opts.page404;
         let mut page50x = opts.page50x;
+
         #[cfg(feature = "http2")]
         let mut http2 = opts.http2;
         #[cfg(feature = "http2")]
         let mut http2_tls_cert = opts.http2_tls_cert;
         #[cfg(feature = "http2")]
         let mut http2_tls_key = opts.http2_tls_key;
+        #[cfg(feature = "http2")]
+        let mut https_redirect = opts.https_redirect;
+        #[cfg(feature = "http2")]
+        let mut https_redirect_host = opts.https_redirect_host;
+        #[cfg(feature = "http2")]
+        let mut https_redirect_from_port = opts.https_redirect_from_port;
+        #[cfg(feature = "http2")]
+        let mut https_redirect_from_hosts = opts.https_redirect_from_hosts;
+
         let mut security_headers = opts.security_headers;
         let mut cors_allow_origins = opts.cors_allow_origins;
         let mut cors_allow_headers = opts.cors_allow_headers;
         let mut cors_expose_headers = opts.cors_expose_headers;
+
+        #[cfg(feature = "directory-listing")]
         let mut directory_listing = opts.directory_listing;
+        #[cfg(feature = "directory-listing")]
         let mut directory_listing_order = opts.directory_listing_order;
+        #[cfg(feature = "directory-listing")]
         let mut directory_listing_format = opts.directory_listing_format;
+
+        #[cfg(feature = "basic-auth")]
         let mut basic_auth = opts.basic_auth;
+
         let mut fd = opts.fd;
         let mut threads_multiplier = opts.threads_multiplier;
         let mut max_blocking_threads = opts.max_blocking_threads;
         let mut grace_period = opts.grace_period;
+
+        #[cfg(feature = "fallback-page")]
         let mut page_fallback = opts.page_fallback;
+
         let mut log_remote_address = opts.log_remote_address;
         let mut redirect_trailing_slash = opts.redirect_trailing_slash;
         let mut ignore_hidden_files = opts.ignore_hidden_files;
@@ -173,6 +193,32 @@ impl Settings {
                     if let Some(v) = general.http2_tls_key {
                         http2_tls_key = Some(v)
                     }
+                    #[cfg(feature = "http2")]
+                    if let Some(v) = general.https_redirect {
+                        https_redirect = v
+                    }
+                    #[cfg(feature = "http2")]
+                    if let Some(v) = general.https_redirect_host {
+                        https_redirect_host = v
+                    }
+                    #[cfg(feature = "http2")]
+                    if let Some(v) = general.https_redirect_from_port {
+                        https_redirect_from_port = v
+                    }
+                    #[cfg(feature = "http2")]
+                    if let Some(v) = general.https_redirect_from_hosts {
+                        https_redirect_from_hosts = v
+                    }
+                    #[cfg(feature = "http2")]
+                    match general.security_headers {
+                        Some(v) => security_headers = v,
+                        _ => {
+                            if http2 {
+                                security_headers = true;
+                            }
+                        }
+                    }
+                    #[cfg(not(feature = "http2"))]
                     if let Some(v) = general.security_headers {
                         security_headers = v
                     }
@@ -185,15 +231,19 @@ impl Settings {
                     if let Some(ref v) = general.cors_expose_headers {
                         cors_expose_headers = v.to_owned()
                     }
+                    #[cfg(feature = "directory-listing")]
                     if let Some(v) = general.directory_listing {
                         directory_listing = v
                     }
+                    #[cfg(feature = "directory-listing")]
                     if let Some(v) = general.directory_listing_order {
                         directory_listing_order = v
                     }
+                    #[cfg(feature = "directory-listing")]
                     if let Some(v) = general.directory_listing_format {
                         directory_listing_format = v
                     }
+                    #[cfg(feature = "basic-auth")]
                     if let Some(ref v) = general.basic_auth {
                         basic_auth = v.to_owned()
                     }
@@ -209,8 +259,9 @@ impl Settings {
                     if let Some(v) = general.grace_period {
                         grace_period = v
                     }
+                    #[cfg(feature = "fallback-page")]
                     if let Some(v) = general.page_fallback {
-                        page_fallback = Some(v)
+                        page_fallback = v
                     }
                     if let Some(v) = general.log_remote_address {
                         log_remote_address = v
@@ -342,18 +393,31 @@ impl Settings {
                 http2_tls_cert,
                 #[cfg(feature = "http2")]
                 http2_tls_key,
+                #[cfg(feature = "http2")]
+                https_redirect,
+                #[cfg(feature = "http2")]
+                https_redirect_host,
+                #[cfg(feature = "http2")]
+                https_redirect_from_port,
+                #[cfg(feature = "http2")]
+                https_redirect_from_hosts,
                 security_headers,
                 cors_allow_origins,
                 cors_allow_headers,
                 cors_expose_headers,
+                #[cfg(feature = "directory-listing")]
                 directory_listing,
+                #[cfg(feature = "directory-listing")]
                 directory_listing_order,
+                #[cfg(feature = "directory-listing")]
                 directory_listing_format,
+                #[cfg(feature = "basic-auth")]
                 basic_auth,
                 fd,
                 threads_multiplier,
                 max_blocking_threads,
                 grace_period,
+                #[cfg(feature = "fallback-page")]
                 page_fallback,
                 log_remote_address,
                 redirect_trailing_slash,

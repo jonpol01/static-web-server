@@ -7,22 +7,29 @@
 //!
 
 use headers::HeaderValue;
-use hyper::{header::WWW_AUTHENTICATE, Body, Request, Response, StatusCode};
+use hyper::{Body, Request, Response, StatusCode};
 use std::{future::Future, net::IpAddr, net::SocketAddr, path::PathBuf, sync::Arc};
 
 #[cfg(feature = "compression")]
 use crate::compression;
 
+#[cfg(feature = "basic-auth")]
+use {crate::basic_auth, hyper::header::WWW_AUTHENTICATE};
+
+#[cfg(feature = "fallback-page")]
+use crate::fallback_page;
+
 use crate::{
-    basic_auth, control_headers, cors, custom_headers,
-    directory_listing::DirListFmt,
-    error_page,
+    control_headers, cors, custom_headers, error_page,
     exts::http::MethodExt,
-    fallback_page, redirects, rewrites, security_headers,
+    redirects, rewrites, security_headers,
     settings::Advanced,
     static_files::{self, HandleOpts},
     Error, Result,
 };
+
+#[cfg(feature = "directory-listing")]
+use crate::directory_listing::DirListFmt;
 
 /// It defines options for a request handler.
 pub struct RequestHandlerOpts {
@@ -34,9 +41,15 @@ pub struct RequestHandlerOpts {
     /// Compression static feature.
     pub compression_static: bool,
     /// Directory listing feature.
+    #[cfg(feature = "directory-listing")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "directory-listing")))]
     pub dir_listing: bool,
     /// Directory listing order feature.
+    #[cfg(feature = "directory-listing")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "directory-listing")))]
     pub dir_listing_order: u8,
+    #[cfg(feature = "directory-listing")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "directory-listing")))]
     /// Directory listing format feature.
     pub dir_listing_format: DirListFmt,
     /// CORS feature.
@@ -50,8 +63,12 @@ pub struct RequestHandlerOpts {
     /// Page for 50x errors.
     pub page50x: Vec<u8>,
     /// Page fallback feature.
+    #[cfg(feature = "fallback-page")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "fallback-page")))]
     pub page_fallback: Vec<u8>,
     /// Basic auth feature.
+    #[cfg(feature = "basic-auth")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "basic-auth")))]
     pub basic_auth: String,
     /// Log remote address feature.
     pub log_remote_address: bool,
@@ -84,8 +101,11 @@ impl RequestHandler {
         let base_path = &self.opts.root_dir;
         let mut uri_path = uri.path();
         let uri_query = uri.query();
+        #[cfg(feature = "directory-listing")]
         let dir_listing = self.opts.dir_listing;
+        #[cfg(feature = "directory-listing")]
         let dir_listing_order = self.opts.dir_listing_order;
+        #[cfg(feature = "directory-listing")]
         let dir_listing_format = &self.opts.dir_listing_format;
         let log_remote_addr = self.opts.log_remote_address;
         let redirect_trailing_slash = self.opts.redirect_trailing_slash;
@@ -149,6 +169,7 @@ impl RequestHandler {
                 };
             }
 
+            #[cfg(feature = "basic-auth")]
             // `Basic` HTTP Authorization Schema
             if !self.opts.basic_auth.is_empty() {
                 if let Some((user_id, password)) = self.opts.basic_auth.split_once(':') {
@@ -223,8 +244,11 @@ impl RequestHandler {
                 base_path,
                 uri_path,
                 uri_query,
+                #[cfg(feature = "directory-listing")]
                 dir_listing,
+                #[cfg(feature = "directory-listing")]
                 dir_listing_order,
+                #[cfg(feature = "directory-listing")]
                 dir_listing_format,
                 redirect_trailing_slash,
                 compression_static,
@@ -289,14 +313,72 @@ impl RequestHandler {
                 }
                 Err(status) => {
                     // Check for a fallback response
+                    #[cfg(feature = "fallback-page")]
                     if method.is_get()
                         && status == StatusCode::NOT_FOUND
                         && !self.opts.page_fallback.is_empty()
                     {
-                        return Ok(fallback_page::fallback_response(&self.opts.page_fallback));
+                        // We use all modules as usual when the `page-fallback` feature is enabled
+                        let mut resp = fallback_page::fallback_response(&self.opts.page_fallback);
+
+                        // Append CORS headers if they are present
+                        if let Some(cors_headers) = cors_headers {
+                            if !cors_headers.is_empty() {
+                                for (k, v) in cors_headers.iter() {
+                                    resp.headers_mut().insert(k, v.to_owned());
+                                }
+                                resp.headers_mut().remove(http::header::ALLOW);
+                            }
+                        }
+
+                        // Compression content encoding varies so use a `Vary` header
+                        #[cfg(feature = "compression")]
+                        if self.opts.compression || compression_static {
+                            resp.headers_mut().append(
+                                hyper::header::VARY,
+                                hyper::header::HeaderValue::from_name(
+                                    hyper::header::ACCEPT_ENCODING,
+                                ),
+                            );
+                        }
+
+                        // Auto compression based on the `Accept-Encoding` header
+                        #[cfg(feature = "compression")]
+                        if self.opts.compression {
+                            resp = match compression::auto(method, headers, resp) {
+                                Ok(res) => res,
+                                Err(err) => {
+                                    tracing::error!("error during body compression: {:?}", err);
+                                    return error_page::error_response(
+                                        uri,
+                                        method,
+                                        &StatusCode::INTERNAL_SERVER_ERROR,
+                                        &self.opts.page404,
+                                        &self.opts.page50x,
+                                    );
+                                }
+                            };
+                        }
+
+                        // Append `Cache-Control` headers for web assets
+                        if self.opts.cache_control_headers {
+                            control_headers::append_headers(uri_path, &mut resp);
+                        }
+
+                        // Append security headers
+                        if self.opts.security_headers {
+                            security_headers::append_headers(&mut resp);
+                        }
+
+                        // Add/update custom headers
+                        if let Some(advanced) = &self.opts.advanced_opts {
+                            custom_headers::append_headers(uri_path, &advanced.headers, &mut resp)
+                        }
+
+                        return Ok(resp);
                     }
 
-                    // Otherwise return a response error
+                    // Otherwise return an error response
                     error_page::error_response(
                         uri,
                         method,

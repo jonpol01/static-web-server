@@ -7,6 +7,102 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _**Note:** See changelog for v1 under the [1.x](https://github.com/static-web-server/static-web-server/blob/1.x/CHANGELOG.md) branch._
 
+## v2.19.0 - 2023-06-16
+
+This new `v2.19.0` release brings several dependency updates/bug fixes (including minor versions), a new [Debian 12 "bookworm"](https://www.debian.org/News/2023/20230610) Docker image, more Cargo features for controlling the SWS feature set when building, bug fixes for the SWS crate and one regression for the `fallback-page` feature, documentation for cross-compiling SWS from source using [Zig as a linker](https://andrewkelley.me/post/zig-cc-powerful-drop-in-replacement-gcc-clang.html) as well as other improvements.
+
+__Fixes__
+
+- [d258803](https://github.com/static-web-server/static-web-server/commit/d258803) Bugfix/security dependency updates including clap, async-compression, zstd, tokio-rustls, toml, pin-project, form_urlencoded, percent-encoding and other crates.
+- [3e4bd47](https://github.com/static-web-server/static-web-server/commit/3e4bd47) Value is required for `fallback-page` when using empty values. PR [#219](https://github.com/static-web-server/static-web-server/pull/219) fixes [#218](https://github.com/static-web-server/static-web-server/issues/218) reported by [@OdyX](https://github.com/OdyX)
+- [558fd96](https://github.com/static-web-server/static-web-server/commit/558fd96) Lib: Unresolved/unused imports when disabling all Cargo features.
+- [911a1c2](https://github.com/static-web-server/static-web-server/commit/911a1c2) Misc: Fix some module typos.
+- [b751b40](https://github.com/static-web-server/static-web-server/commit/b751b40) CI: Wrong release tag for checksums workflow.
+
+__Features__
+
+- [3adf75e](https://github.com/static-web-server/static-web-server/commit/3adf75e) Docker: [Debian 12 "bookworm"](https://www.debian.org/News/2023/20230610) Docker image using statically-linked binary (musl libc). See [docs](https://static-web-server.net/features/docker/).
+- [79a93f6](https://github.com/static-web-server/static-web-server/commit/79a93f6) Lib: `directory-listing` Cargo feature. PR [#220](https://github.com/static-web-server/static-web-server/pull/220). See [docs](https://static-web-server.net/building-from-source/#building-project-from-source).
+- [a8144d6](https://github.com/static-web-server/static-web-server/commit/a8144d6) Lib: `basic-auth` Cargo feature. PR [#221](https://github.com/static-web-server/static-web-server/pull/221). See [docs](https://static-web-server.net/building-from-source/#building-project-from-source).
+- [680c8aa](https://github.com/static-web-server/static-web-server/commit/680c8aa) Lib: `fallback-page` Cargo feature. PR [#222](https://github.com/static-web-server/static-web-server/pull/222). See [docs](https://static-web-server.net/building-from-source/#building-project-from-source).
+
+__Refactorings__
+
+- [986b663](https://github.com/static-web-server/static-web-server/commit/986b663) Lib: Enable Crate `docsrs` config flag.
+- [9e635bd](https://github.com/static-web-server/static-web-server/commit/9e635bd) Lib: Improve Cargo docs for some SWS features.
+- [a0f92f5](https://github.com/static-web-server/static-web-server/commit/a0f92f5) CI: Post-release updates script.
+
+__Docs__
+
+- [379f88b](https://github.com/static-web-server/static-web-server/commit/379f88b) Cross-compile SWS from source using [Zig as a linker](https://andrewkelley.me/post/zig-cc-powerful-drop-in-replacement-gcc-clang.html). See [docs](https://static-web-server.net/building-from-source/#cross-compiling).
+
+## v2.18.0 - 2023-06-07
+
+This new `v2.18.0` release brings several dependency updates/bug fixes, bug fixes for the `security-headers` and `page-fallback` features, the C runtime in Windows x86_64 is now statically linked, possibility to use CLI boolean flags without explicit values as well as some refactorings and improvements.
+
+__Fixes__
+
+- [ddfc00b](https://github.com/static-web-server/static-web-server/commit/ddfc00b) Bugfix/security dependency updates including clap, parking_lot, libc, percent-encoding, form_urlencoded, regex and other crates.
+- [cbb21c0](https://github.com/static-web-server/static-web-server/commit/cbb21c0) `security-headers` not enabled by default when using `http2` via config file. PR [#216](https://github.com/static-web-server/static-web-server/pull/216) fixes [#210](https://github.com/static-web-server/static-web-server/issues/210) resported by [@mac-chaffee](https://github.com/mac-chaffee).
+- [91519c9](https://github.com/static-web-server/static-web-server/commit/91519c9) Obsolete `X-XSS-Protection` header on `security-headers` (also [d5279ff](https://github.com/static-web-server/static-web-server/commit/d5279ff)). Reported on [#213](https://github.com/static-web-server/static-web-server/discussions/213) by [@picchietti](https://github.com/picchietti).
+- [e183ea3](https://github.com/static-web-server/static-web-server/commit/e183ea3) Missing SWS base modules when `page-fallback` is enabled. Reported on [#213](https://github.com/static-web-server/static-web-server/discussions/213) by [@picchietti](https://github.com/picchietti).<br>
+  The following SWS modules are now used when `page-fallback` feature is activated:
+  - `cors`
+  - `compression`
+  - `cache_control_headers`
+  - `security_headers`
+  - `custom_headers`
+- [fba6665](https://github.com/static-web-server/static-web-server/commit/fba6665) CI: Workflow fails to generate proper checksums.
+
+__Features__
+
+- [2150c74](https://github.com/static-web-server/static-web-server/commit/2150c74) Support for CLI boolean flags without explicit values (E.g. `static-web-server -d public/ --compression -z`). PR [#215](https://github.com/static-web-server/static-web-server/pull/215) resolves [#209](https://github.com/static-web-server/static-web-server/issues/209) suggested by [@mac-chaffee](https://github.com/mac-chaffee).
+
+__Refactorings__
+
+- [fa0cca5](https://github.com/static-web-server/static-web-server/commit/fa0cca5) Statically link the C runtime on Windows MSVC x86_64 to avoid the `VCRUNTIME140.dll`.
+- [a75147e](https://github.com/static-web-server/static-web-server/commit/a75147e) Lib: Rust nightly toolchain for crate docs.
+- [520e66d](https://github.com/static-web-server/static-web-server/commit/520e66d) CI: Increase verbosity of `cargo build` across pipelines.
+
+__Acknowledgments__
+
+Thanks to our new donor [@picchietti](https://github.com/picchietti) for supporting the project.
+
+## v2.17.0 - 2023-06-03
+
+This new `v2.17.0` release brings several dependency updates/bug fixes, ECC private keys support for the `tls` feature, HTTP to HTTPS redirect support, several Cargo features for controlling the SWS `compression` and `compression-static`, dependency migrations like the `clap` CLI parser and `tokio-rustls` as well as various refactorings and improvements.
+
+__Fixes__
+
+- [b685cda](https://github.com/static-web-server/static-web-server/commit/b685cda) Bugfix/security dependency updates including tokio, tracing, chrono, serde, h2, libc, pin-project, windows-sys and other crates.
+
+__Features__
+
+- [946b4e5](https://github.com/static-web-server/static-web-server/commit/946b4e5) HTTP to HTTPS redirect support. PR [#203](https://github.com/static-web-server/static-web-server/pull/203) resolves [#202](https://github.com/static-web-server/static-web-server/issues/202) suggested by [@micsama](https://github.com/micsama). See [docs](https://static-web-server.net/features/http-https-redirect/).
+- [0f66443](https://github.com/static-web-server/static-web-server/commit/0f66443) ECC private keys support for the `tls` feature. PR [#208](https://github.com/static-web-server/static-web-server/pull/208) resolves [#207](https://github.com/static-web-server/static-web-server/issues/207) suggested by [@mac-chaffee](https://github.com/mac-chaffee). See [docs](https://static-web-server.net/features/http2-tls/#private-key-file-formats).
+- [af77e4a](https://github.com/static-web-server/static-web-server/commit/af77e4a) Lib: Cargo features for `compression` and `compression-static`. PR [#201](https://github.com/static-web-server/static-web-server/pull/201).
+- [f8fca0a](https://github.com/static-web-server/static-web-server/commit/f8fca0a) Misc: Include SPDX license identifiers in every source file.
+- [a345df3](https://github.com/static-web-server/static-web-server/commit/a345df3) Misc: Benchmarks 2023-04. See [repository](https://github.com/static-web-server/benchmarks).
+- [1894474](https://github.com/static-web-server/static-web-server/commit/1894474) CI: Workflow to automate checksums.
+
+__Refactorings__
+
+- [4e01de6](https://github.com/static-web-server/static-web-server/commit/4e01de6) Migrate `clap` CLI parser to v3. PR [#211](https://github.com/static-web-server/static-web-server/pull/211) by [@mac-chaffee](https://github.com/mac-chaffee).
+- [e8560a0](https://github.com/static-web-server/static-web-server/commit/e8560a0) Update `tokio-rustls` to `0.24`.
+- [20de5d0](https://github.com/static-web-server/static-web-server/commit/20de5d0) HTTP to HTTPS redirect feature improvements.
+- [647e9b0](https://github.com/static-web-server/static-web-server/commit/647e9b0) Lib: Include missing `rustls-pemfile` in Cargo `tls` feature.
+- [53ef76e](https://github.com/static-web-server/static-web-server/commit/53ef76e) Lib: Improve Rust docs for Cargo features.
+- [6b81c48](https://github.com/static-web-server/static-web-server/commit/6b81c48) Lib: Simplify `http2` Cargo feature.
+- [ae17023](https://github.com/static-web-server/static-web-server/commit/ae17023) CI: Simplify workflow scripts.
+
+__Docs__
+
+- [d3fa602](https://github.com/static-web-server/static-web-server/commit/d3fa602) HTTP to HTTPS redirect feature page. See [docs](https://static-web-server.net/features/http-https-redirect/).
+- [880eaf4](https://github.com/static-web-server/static-web-server/commit/880eaf4) HTTP/2 and TLS feature page improvements. See [docs](https://static-web-server.net/features/http-https-redirect/). See [docs](https://static-web-server.net/features/http2-tls/).
+- [e0ae5a7](https://github.com/static-web-server/static-web-server/commit/e0ae5a7) Blocking threads feature page. See [docs](https://static-web-server.net/features/blocking-threads/).
+- [c64e3d6](https://github.com/static-web-server/static-web-server/commit/c64e3d6) Safe TLS defaults description. See [docs](https://static-web-server.net/features/http2-tls/#safe-tls-defaults).
+- [6876a75](https://github.com/static-web-server/static-web-server/commit/6876a75) Enable content editing option and revision. See [docs](https://static-web-server.net/).
+
 ## v2.16.0 - 2023-04-25
 
 This new `v2.16.0` release brings several dependency updates/bug fixes including the Alpine Docker image, a new Android ARM64 target, Zstandard (zstd) auto-compression and pre-compressed files support, `static-web-server` available as a crate, as well as other additions and improvements.
@@ -45,7 +141,7 @@ __Docs__
 
 ## v2.15.0 - 2023-03-13
 
-This new `v2.15.0` release brings several dependency updates, one bug fix for the `compression-static`, new features like  Tokio's `--max-blocking-threads` or `.html` prefixing for directory requests, the possibity to build SWS on non-Unix/Windows platforms and performance optimizations and improvements across several modules including `static_file` which [speeds up](https://gist.github.com/joseluisq/cb0962474210e56e768ff5671b3ddd11) SWS around `~4.37%` (req/sec) for almost the same computing.
+This new `v2.15.0` release brings several dependency updates, one bug fix for the `compression-static`, new features like  Tokio's `--max-blocking-threads` or `.html` prefixing for directory requests, the possibility to build SWS on non-Unix/Windows platforms and performance optimizations and improvements across several modules including `static_file` which [speeds up](https://gist.github.com/joseluisq/cb0962474210e56e768ff5671b3ddd11) SWS around `~4.37%` (req/sec) for almost the same computing.
 
 __Fixes__
 

@@ -35,7 +35,7 @@
 //!
 //! It's cross-platform and available for `Linux`, `macOS`, `Windows` and `FreeBSD` (`x86`/`x86_64`,  `ARM`/`ARM64`) as well as `Docker`.
 //!
-//! ![static-web-server](https://user-images.githubusercontent.com/1700322/152613820-658f025c-d0a4-46b3-aa6d-bdc7f638ce77.png)
+//! ![static-web-server](https://github.com/static-web-server/static-web-server/assets/1700322/102bef12-1f30-4054-a1bc-30c650d4ffa7)
 //!
 //! ## Features
 //!
@@ -84,6 +84,12 @@
 //! `compression-deflate` | Activates auto-compression/compression static with only the `deflate` algorithm.
 //! `compression-gzip` | Activates auto-compression/compression static with only the `gzip` algorithm.
 //! `compression-zstd` | Activates auto-compression/compression static with only the `zstd` algorithm.
+//! [**Directory Listing**](https://static-web-server.net/features/directory-listing/) |
+//! `directory-listing` | Activates the directory listing feature.
+//! [**Basic Authorization**](./features/basic-authentication.md) |
+//! `basic-auth` | Activates the Basic HTTP Authorization Schema feature.
+//! [**Fallback Page**](./features/error-pages.md#fallback-page-for-use-with-client-routers) |
+//! `fallback-page` | Activates the Fallback Page feature.
 //!
 
 #![deny(missing_docs)]
@@ -100,6 +106,8 @@ extern crate anyhow;
 extern crate serde;
 
 // Public modules
+#[cfg(feature = "basic-auth")]
+#[cfg_attr(docsrs, doc(cfg(feature = "basic-auth")))]
 pub mod basic_auth;
 #[cfg(feature = "compression")]
 #[cfg_attr(docsrs, doc(cfg(feature = "compression")))]
@@ -110,11 +118,18 @@ pub mod compression_static;
 pub mod control_headers;
 pub mod cors;
 pub mod custom_headers;
+#[cfg(feature = "directory-listing")]
+#[cfg_attr(docsrs, doc(cfg(feature = "directory-listing")))]
 pub mod directory_listing;
 pub mod error_page;
 pub mod exts;
+#[cfg(feature = "fallback-page")]
+#[cfg_attr(docsrs, doc(cfg(feature = "fallback-page")))]
 pub mod fallback_page;
 pub mod handler;
+#[cfg(feature = "http2")]
+#[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
+pub mod https_redirect;
 pub mod logger;
 pub mod redirects;
 pub mod rewrites;
@@ -123,6 +138,7 @@ pub mod server;
 pub mod service;
 pub mod settings;
 #[cfg(any(unix, windows))]
+#[cfg_attr(docsrs, doc(cfg(any(unix, windows))))]
 pub mod signals;
 pub mod static_files;
 #[cfg(feature = "http2")]
@@ -130,6 +146,7 @@ pub mod static_files;
 pub mod tls;
 pub mod transport;
 #[cfg(windows)]
+#[cfg_attr(docsrs, doc(cfg(windows)))]
 pub mod winservice;
 #[macro_use]
 pub mod error;
