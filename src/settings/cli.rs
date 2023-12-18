@@ -6,10 +6,12 @@
 //! The server CLI options
 
 use clap::Parser;
+use hyper::StatusCode;
 use std::path::PathBuf;
 
 #[cfg(feature = "directory-listing")]
 use crate::directory_listing::DirListFmt;
+use crate::Result;
 
 /// General server configuration available in CLI and config file options.
 #[derive(Parser, Debug)]
@@ -99,20 +101,16 @@ pub struct General {
     /// Root directory path of static files.
     pub root: PathBuf,
 
-    #[arg(
-        long,
-        default_value = "./public/50x.html",
-        env = "SERVER_ERROR_PAGE_50X"
-    )]
-    /// HTML file path for 50x errors. If the path is not specified or simply doesn't exist then the server will use a generic HTML error message.
+    #[arg(long, default_value = "./50x.html", env = "SERVER_ERROR_PAGE_50X")]
+    /// HTML file path for 50x errors. If the path is not specified or simply doesn't exist
+    /// then the server will use a generic HTML error message.
+    /// If a relative path is used then it will be resolved under the root directory.
     pub page50x: PathBuf,
 
-    #[arg(
-        long,
-        default_value = "./public/404.html",
-        env = "SERVER_ERROR_PAGE_404"
-    )]
-    /// HTML file path for 404 errors. If the path is not specified or simply doesn't exist then the server will use a generic HTML error message.
+    #[arg(long, default_value = "./404.html", env = "SERVER_ERROR_PAGE_404")]
+    /// HTML file path for 404 errors. If the path is not specified or simply doesn't exist
+    /// then the server will use a generic HTML error message.
+    /// If a relative path is used then it will be resolved under the root directory.
     pub page404: PathBuf,
 
     #[cfg(feature = "fallback-page")]
@@ -226,6 +224,11 @@ pub struct General {
     /// List of host names or IPs allowed to redirect from. HTTP requests must contain the HTTP 'Host' header and match against this list. It depends on "https_redirect" to be enabled.
     pub https_redirect_from_hosts: String,
 
+    #[arg(long, default_value = "index.html", env = "SERVER_INDEX_FILES")]
+    /// List of files that will be used as an index for requests ending with the slash character (‘/’).
+    /// Files are checked in the specified order.
+    pub index_files: String,
+
     #[cfg(feature = "compression")]
     #[cfg_attr(docsrs, doc(cfg(feature = "compression")))]
     #[arg(
@@ -338,9 +341,15 @@ pub struct General {
     /// Defines a grace period in seconds after a `SIGTERM` signal is caught which will delay the server before to shut it down gracefully. The maximum value is 255 seconds.
     pub grace_period: u8,
 
-    #[arg(long, short = 'w', env = "SERVER_CONFIG_FILE")]
+    #[arg(
+        long,
+        short = 'w',
+        default_value = "./config.toml",
+        value_parser = value_parser_pathbuf,
+        env = "SERVER_CONFIG_FILE"
+    )]
     /// Server TOML configuration file path.
-    pub config_file: Option<PathBuf>,
+    pub config_file: PathBuf,
 
     #[arg(
         long,
@@ -377,6 +386,51 @@ pub struct General {
     )]
     /// Ignore hidden files/directories (dotfiles), preventing them to be served and being included in auto HTML index pages (directory listing).
     pub ignore_hidden_files: bool,
+
+    #[arg(
+        long,
+        default_value = "false",
+        default_missing_value("true"),
+        num_args(0..=1),
+        require_equals(true),
+        action = clap::ArgAction::Set,
+        env = "SERVER_HEALTH",
+    )]
+    /// Add a /health endpoint that doesn't generate any log entry and returns a 200 status code.
+    /// This is especially useful with Kubernetes liveness and readiness probes.
+    pub health: bool,
+
+    #[arg(
+        long,
+        default_value = "false",
+        default_missing_value("true"),
+        num_args(0..=1),
+        require_equals(true),
+        action = clap::ArgAction::Set,
+        env = "SERVER_MAINTENANCE_MODE"
+    )]
+    /// Enable the server's maintenance mode functionality.
+    pub maintenance_mode: bool,
+
+    #[arg(
+        long,
+        default_value = "503",
+        value_parser = value_parser_status_code,
+        requires_if("true", "maintenance_mode"),
+        env = "SERVER_MAINTENANCE_MODE_STATUS"
+    )]
+    /// Provide a custom HTTP status code when entering into maintenance mode. Default 503.
+    pub maintenance_mode_status: StatusCode,
+
+    #[arg(
+        long,
+        default_value = "",
+        value_parser = value_parser_pathbuf,
+        requires_if("true", "maintenance_mode"),
+        env = "SERVER_MAINTENANCE_MODE_FILE"
+    )]
+    /// Provide a custom maintenance mode HTML file. If not provided then a generic message will be displayed.
+    pub maintenance_mode_file: PathBuf,
 
     //
     // Windows specific arguments and commands
@@ -415,7 +469,13 @@ pub enum Commands {
     Uninstall {},
 }
 
-#[cfg(feature = "fallback-page")]
-fn value_parser_pathbuf(s: &str) -> crate::Result<PathBuf, String> {
+fn value_parser_pathbuf(s: &str) -> Result<PathBuf, String> {
     Ok(PathBuf::from(s))
+}
+
+fn value_parser_status_code(s: &str) -> Result<StatusCode, String> {
+    match s.parse::<u16>() {
+        Ok(code) => StatusCode::from_u16(code).map_err(|err| err.to_string()),
+        Err(err) => Err(err.to_string()),
+    }
 }

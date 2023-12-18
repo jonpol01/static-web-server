@@ -8,8 +8,7 @@
 
 use chrono::{DateTime, Local, NaiveDateTime, Utc};
 use clap::ValueEnum;
-use futures_util::future::Either;
-use futures_util::{future, FutureExt};
+use futures_util::{future, future::Either, FutureExt};
 use headers::{ContentLength, ContentType, HeaderMapExt};
 use humansize::FormatSize;
 use hyper::{Body, Method, Response, StatusCode};
@@ -33,36 +32,49 @@ pub enum DirListFmt {
     Json,
 }
 
+/// Directory listing options.
+pub struct DirListOpts<'a> {
+    /// Request method.
+    pub method: &'a Method,
+    /// Current Request path.
+    pub current_path: &'a str,
+    /// URI Request query
+    pub uri_query: Option<&'a str>,
+    /// Request file path.
+    pub filepath: &'a Path,
+    /// Directory listing order.
+    pub dir_listing_order: u8,
+    /// Directory listing format.
+    pub dir_listing_format: &'a DirListFmt,
+    /// Ignore hidden files (dotfiles).
+    pub ignore_hidden_files: bool,
+}
+
 /// Provides directory listing support for the current request.
 /// Note that this function highly depends on `static_files::composed_file_metadata()` function
 /// which must be called first. See `static_files::handle()` for more details.
-pub fn auto_index<'a>(
-    method: &'a Method,
-    current_path: &'a str,
-    uri_query: Option<&'a str>,
-    filepath: &'a Path,
-    dir_listing_order: u8,
-    dir_listing_format: &'a DirListFmt,
-    ignore_hidden_files: bool,
-) -> impl Future<Output = Result<Response<Body>, StatusCode>> + Send + 'a {
+pub fn auto_index(
+    opts: DirListOpts<'_>,
+) -> impl Future<Output = Result<Response<Body>, StatusCode>> + Send + '_ {
     // Note: it's safe to call `parent()` here since `filepath`
     // value always refer to a path with file ending and under
     // a root directory boundary.
     // See `composed_file_metadata()` function which sanitizes the requested
     // path before to be delegated here.
+    let filepath = opts.filepath;
     let parent = filepath.parent().unwrap_or(filepath);
 
     tokio::fs::read_dir(parent).then(move |res| match res {
         Ok(dir_reader) => Either::Left(async move {
-            let is_head = method.is_head();
+            let is_head = opts.method.is_head();
             match read_dir_entries(
                 dir_reader,
-                current_path,
-                uri_query,
+                opts.current_path,
+                opts.uri_query,
                 is_head,
-                dir_listing_order,
-                dir_listing_format,
-                ignore_hidden_files,
+                opts.dir_listing_order,
+                opts.dir_listing_format,
+                opts.ignore_hidden_files,
             )
             .await
             {
@@ -105,8 +117,9 @@ pub fn auto_index<'a>(
     })
 }
 
-const STYLE: &str = r#"<style>html{background-color:#fff;-moz-osx-font-smoothing:grayscale;-webkit-font-smoothing:antialiased;min-width:20rem;text-rendering:optimizeLegibility;-webkit-text-size-adjust:100%;-moz-text-size-adjust:100%;text-size-adjust:100%}body{padding:1rem;font-family:Consolas,'Liberation Mono',Menlo,monospace;font-size:.875rem;max-width:70rem;margin:0 auto;color:#4a4a4a;font-weight:400;line-height:1.5}h1{margin:0;padding:0;font-size:1.375rem;line-height:1.25;margin-bottom:0.5rem;}table{width:100%;border-spacing: 0;}table th,table td{padding:.2rem .5rem;white-space:nowrap;vertical-align:top}table th a,table td a{display:inline-block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:95%;vertical-align:top}table tr:hover td{background-color:#f5f5f5}footer{padding-top:0.5rem}table tr th{text-align:left;}</style>"#;
-const FOOTER: &str = r#"<footer>Powered by <a target="_blank" href="https://static-web-server.net">Static Web Server</a> | MIT &amp; Apache 2.0</footer>"#;
+const STYLE: &str = r#"<style>html{background-color:#fff;-moz-osx-font-smoothing:grayscale;-webkit-font-smoothing:antialiased;min-width:20rem;text-rendering:optimizeLegibility;-webkit-text-size-adjust:100%;-moz-text-size-adjust:100%;text-size-adjust:100%}:after,:before{box-sizing:border-box;}body{padding:1rem;font-family:Consolas,'Liberation Mono',Menlo,monospace;font-size:.75rem;max-width:70rem;margin:0 auto;color:#4a4a4a;font-weight:400;line-height:1.5}h1{margin:0;padding:0;font-size:1rem;line-height:1.25;margin-bottom:0.5rem;}table{width:100%;table-layout:fixed;border-spacing: 0;}hr{border-style: none;border-bottom: solid 1px gray;}table th,table td{padding:.15rem 0;white-space:nowrap;vertical-align:top}table th a,table td a{display:inline-block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:95%;vertical-align:top;}table tr:hover td{background-color:#f5f5f5}footer{padding-top:0.5rem}table tr th{text-align:left;}@media (max-width:30rem){table th:first-child{width:20rem;}}</style>"#;
+const FOOTER: &str =
+    r#"<footer><small>Powered by Static Web Server (SWS) / static-web-server.net</small></footer>"#;
 
 const DATETIME_FORMAT_UTC: &str = "%FT%TZ";
 const DATETIME_FORMAT_LOCAL: &str = "%F %T";
@@ -117,6 +130,7 @@ struct FileEntry {
     name_encoded: String,
     modified: Option<DateTime<Local>>,
     filesize: u64,
+    is_dir: bool,
     uri: Option<String>,
 }
 
@@ -272,11 +286,14 @@ async fn read_dir_entries(
                 None
             }
         };
+        let is_dir = meta.is_dir();
+
         file_entries.push(FileEntry {
             name,
             name_encoded,
             modified,
             filesize,
+            is_dir,
             uri,
         });
     }
@@ -350,8 +367,7 @@ fn json_auto_index(entries: &mut [FileEntry], order_code: u8) -> Result<String> 
     for entry in entries {
         let file_size = &entry.filesize;
         let file_name = &entry.name;
-        let is_empty = *file_size == 0_u64;
-        let file_type = if is_empty { "directory" } else { "file" };
+        let file_type = if entry.is_dir { "directory" } else { "file" };
         let file_modified = &entry.modified;
 
         json.push('{');
@@ -366,7 +382,7 @@ fn json_auto_index(entries: &mut [FileEntry], order_code: u8) -> Result<String> 
         });
         json.push_str(format!("\"mtime\":\"{file_modified_str}\"").as_str());
 
-        if !is_empty {
+        if !entry.is_dir {
             json.push_str(format!(",\"size\":{file_size}").as_str());
         }
         json.push_str("},");
@@ -414,7 +430,7 @@ fn html_auto_index<'a>(
 
     // Create the table header specifying every order code column
     let table_header = format!(
-        r#"<thead><tr><th><a href="?sort={}">Name</a></th><th style="width:160px;"><a href="?sort={}">Last modified</a></th><th style="width:120px;text-align:right;"><a href="?sort={}">Size</a></th></tr></thead>"#,
+        r#"<thead><tr><th><a href="?sort={}">Name</a></th><th style="width:10rem;"><a href="?sort={}">Last modified</a></th><th style="width:6rem;text-align:right;"><a href="?sort={}">Size</a></th></tr></thead>"#,
         sort_attrs.name, sort_attrs.last_modified, sort_attrs.size,
     );
 
@@ -445,18 +461,13 @@ fn html_auto_index<'a>(
     }
 
     let current_path = percent_decode_str(base_path).decode_utf8()?.to_string();
-    let dirs_str = if dirs_count == 1 {
-        "directory"
-    } else {
-        "directories"
-    };
     let summary = format!(
-        "<div>{} {}, {} {}</div>",
-        dirs_count, dirs_str, files_count, "file(s)"
+        "<p><small>directories: {}, files: {}</small></p>",
+        dirs_count, files_count,
     );
 
     let html_page = format!(
-        "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Index of {current_path}</title>{STYLE}</head><body><h1>Index of {current_path}</h1>{summary}<hr><table>{table_header}{table_row}</table><hr>{FOOTER}</body></html>"
+        "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,minimum-scale=1,initial-scale=1\"><title>Index of {current_path}</title>{STYLE}</head><body><h1>Index of {current_path}</h1>{summary}<hr><div style=\"overflow-x: auto;\"><table>{table_header}{table_row}</table></div><hr>{FOOTER}</body></html>"
     );
 
     Ok(html_page)
@@ -528,7 +539,9 @@ fn parse_last_modified(modified: SystemTime) -> Result<DateTime<Local>> {
         NaiveDateTime::from_timestamp_opt(since_epoch.as_secs() as i64, since_epoch.subsec_nanos());
 
     match utc_dt {
-        Some(utc_dt) => Ok(DateTime::<Utc>::from_utc(utc_dt, Utc).with_timezone(&Local)),
+        Some(utc_dt) => {
+            Ok(DateTime::<Utc>::from_naive_utc_and_offset(utc_dt, Utc).with_timezone(&Local))
+        }
         None => Err(anyhow!(
             "out-of-range number of seconds and/or invalid nanosecond"
         )),

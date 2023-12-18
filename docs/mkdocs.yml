@@ -59,7 +59,7 @@ theme:
   font:
     text: 'Open Sans'
     code: 'Droid Sans Mono'
-  favicon: https://camo.githubusercontent.com/a08032a2db94aea229991af8f73c45cc95174c8066dc7a6b1f88a79c94cf1093/68747470733a2f2f75706c6f61642e77696b696d656469612e6f72672f77696b6970656469612f636f6d6d6f6e732f7468756d622f642f64352f527573745f70726f6772616d6d696e675f6c616e67756167655f626c61636b5f6c6f676f2e7376672f3130323470782d527573745f70726f6772616d6d696e675f6c616e67756167655f626c61636b5f6c6f676f2e7376672e706e67
+  favicon: https://static-web-server.net/assets/sws.svg
 
 extra:
   social:
@@ -129,8 +129,8 @@ plugins:
 # Content Navigation
 nav:
   - 'Overview': 'index.md'
-  - 'Download and Install': 'download-and-install.md'
   - 'Getting Started': 'getting-started.md'
+  - 'Download and Install': 'download-and-install.md'
   - 'Configuration':
     - 'Command Line Arguments': 'configuration/command-line-arguments.md'
     - 'Environment Variables': 'configuration/environment-variables.md'
@@ -161,6 +161,11 @@ nav:
     - 'Windows Service': 'features/windows-service.md'
     - 'Trailing Slash Redirect': 'features/trailing-slash-redirect.md'
     - 'Ignore Files': 'features/ignore-files.md'
+    - 'Health endpoint': 'features/health-endpoint.md'
+    - 'Virtual Hosting': 'features/virtual-hosting.md'
+    - 'Multiple Index Files': 'features/multiple-index-files.md'
+    - 'Maintenance Mode': 'features/maintenance-mode.md'
+    - 'WebAssembly': 'features/webassembly.md'
   - 'Platforms & Architectures': 'platforms-architectures.md'
   - 'Migrating from v1 to v2': 'migration.md'
   - 'Changelog v2 (stable)': 'https://github.com/static-web-server/static-web-server/blob/master/CHANGELOG.md'

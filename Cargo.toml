@@ -1,6 +1,8 @@
 [package]
 name = "static-web-server"
-version = "2.19.0"
+version = "2.24.1"
+edition = "2021"
+rust-version = "1.70.0"
 authors = ["Jose Quintana <https://joseluisq.net>"]
 license = "MIT OR Apache-2.0"
 description = "A cross-platform, high-performance and asynchronous web server for static files-serving."
@@ -13,7 +15,6 @@ keywords = [
     "http-server"
 ]
 categories = ["network-programming", "web-programming::http-server"]
-edition = "2021"
 include = [
     "src/**/*.rs",
     "Cargo.toml",
@@ -23,10 +24,6 @@ include = [
 ]
 autotests = true
 autoexamples = true
-
-[package.metadata.docs.rs]
-all-features = true
-rustc-args = ["--cfg", "docsrs"]
 
 [lib]
 name = "static_web_server"
@@ -56,35 +53,37 @@ basic-auth = ["bcrypt"]
 fallback-page = []
 
 [dependencies]
+aho-corasick = "1.1"
 anyhow = "1.0"
 async-compression = { version = "0.4", default-features = false, optional = true, features = ["brotli", "deflate", "gzip", "zstd", "tokio"] }
-bcrypt = { version = "0.14", optional = true }
+bcrypt = { version = "0.15", optional = true }
 bytes = "1.4"
+chrono = { version = "0.4", default-features = false, features = ["std", "clock"], optional = true }
+clap = { version = "4.4", features = ["derive", "env"] }
 form_urlencoded = "1.2"
-futures-util = { version = "0.3", default-features = false, features = ["sink"] }
+futures-util = { version = "0.3", default-features = false }
 globset = { version = "0.4", features = ["serde1"] }
-headers = { package = "headers-accept-encoding", version = "1.0" }
+headers = { package = "headers-accept-encoding", version = "=1.0" }
 http = "0.2"
 http-serde = "1.1"
 humansize = { version = "2.1", features = ["impl_style"], optional = true }
 hyper = { version = "0.14", features = ["stream", "http1", "http2", "tcp", "server"] }
 listenfd = "1.0"
 mime_guess = "2.0"
-num_cpus = { version = "1.15" }
+num_cpus = { version = "1.16" }
 percent-encoding = "2.3"
 pin-project = "1.1"
+regex = "1.10"
 rustls-pemfile = { version = "1.0", optional = true }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
 serde_ignored = "0.1"
 serde_repr = "0.1"
-clap = { version = "4.3", features = ["derive", "env"] }
-chrono = { version = "0.4", default-features = false, features = ["std", "clock"], optional = true }
 tokio = { version = "1", default-features = false, features = ["rt-multi-thread", "macros", "fs", "io-util", "signal"] }
 tokio-rustls = { version = "0.24", optional = true }
 tokio-util = { version = "0.7", default-features = false, features = ["io"] }
-toml = "0.7"
+toml = "0.8"
 tracing = { version = "0.1", default-features = false, features = ["std"] }
-tracing-subscriber = { version = "0.3", default-features = false, features = ["smallvec", "parking_lot", "fmt", "ansi", "tracing-log"] }
+tracing-subscriber = { version = "0.3", default-features = false, features = ["smallvec", "registry", "parking_lot", "fmt", "ansi", "tracing-log"] }
 
 [target.'cfg(all(target_env = "musl", target_pointer_width = "64"))'.dependencies.tikv-jemallocator]
 version = "0.5"
@@ -109,3 +108,18 @@ opt-level = 3
 panic = "abort"
 rpath = false
 strip = true
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+# workaround for https://github.com/cross-rs/cross/issues/1345
+[package.metadata.cross.target.x86_64-unknown-netbsd]
+pre-build = [
+    "mkdir -p /tmp/netbsd",
+    "curl https://cdn.netbsd.org/pub/NetBSD/NetBSD-9.2/amd64/binary/sets/base.tar.xz -O",
+    "tar -C /tmp/netbsd -xJf base.tar.xz",
+    "cp /tmp/netbsd/usr/lib/libexecinfo.so /usr/local/x86_64-unknown-netbsd/lib",
+    "rm base.tar.xz",
+    "rm -rf /tmp/netbsd",
+]

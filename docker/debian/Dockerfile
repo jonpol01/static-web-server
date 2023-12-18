@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM debian:12.0-slim as build
+FROM --platform=$BUILDPLATFORM debian:12.2-slim as build
 
 ARG TARGETPLATFORM
 ARG SERVER_VERSION=0.0.0
@@ -20,6 +20,8 @@ RUN set -ex \
         "linux/386") target='i686-unknown-linux-musl' ;; \
         "linux/arm/v7") target='armv7-unknown-linux-musleabihf' ;; \
         "linux/arm/v6") target='arm-unknown-linux-musleabihf' ;; \
+        "linux/ppc64le") target='powerpc64le-unknown-linux-gnu' ;; \
+        "linux/s390x") target='s390x-unknown-linux-gnu' ;; \
         *) echo >&2 "error: unsupported $TARGETPLATFORM architecture"; exit 1 ;; \
     esac \
     && curl -Lo /tmp/static-web-server.tar.gz \
@@ -35,12 +37,18 @@ RUN set -ex \
     && uname -a \
     && cat /etc/os-release \
     && echo VERSION_NUMBER=$(cat /etc/debian_version) \
-    && static-web-server --version \
-    && static-web-server --help \
+    && case "$TARGETPLATFORM" in \
+        **ppc64*|*s390x*) \
+            echo "warn: can not run sws binary on $TARGETPLATFORM architecture" ;; \
+        *) \
+            static-web-server --version; \
+            static-web-server --help; \
+        ;; \
+    esac \
     && file /usr/local/bin/static-web-server \
     && true
 
-FROM debian:12.0-slim
+FROM debian:12.2-slim
 
 ARG SERVER_VERSION=0.0.0
 ENV SERVER_VERSION=${SERVER_VERSION}

@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM alpine:3.17.3 as build
+FROM --platform=$BUILDPLATFORM alpine:3.17.5 as build
 
 ARG TARGETPLATFORM
 ARG SERVER_VERSION=0.0.0
@@ -12,6 +12,8 @@ RUN set -ex; \
         "linux/386") target='i686-unknown-linux-musl' ;; \
         "linux/arm/v7") target='armv7-unknown-linux-musleabihf' ;; \
         "linux/arm/v6") target='arm-unknown-linux-musleabihf' ;; \
+        "linux/ppc64le") target='powerpc64le-unknown-linux-gnu' ;; \
+        "linux/s390x") target='s390x-unknown-linux-gnu' ;; \
         *) echo >&2 "error: unsupported $TARGETPLATFORM architecture"; exit 1 ;; \
     esac; \
     wget --quiet -O /tmp/static-web-server.tar.gz "https://github.com/static-web-server/static-web-server/releases/download/v${SERVER_VERSION}/static-web-server-v${SERVER_VERSION}-${target}.tar.gz"; \
@@ -20,7 +22,7 @@ RUN set -ex; \
     rm -rf /tmp/static-web-server.tar.gz static-web-server-v${SERVER_VERSION}-${target}; \
     chmod +x /usr/local/bin/static-web-server
 
-FROM alpine:3.17.3
+FROM alpine:3.17.5
 
 ARG SERVER_VERSION=0.0.0
 ENV SERVER_VERSION=${SERVER_VERSION}

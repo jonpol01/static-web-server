@@ -4,6 +4,8 @@
 
 It is provided in three Docker image variants such as [Scratch](https://hub.docker.com/_/scratch), [Alpine](https://hub.docker.com/_/alpine) and [Debian](https://hub.docker.com/_/debian) images.
 
+All images are available on [Docker Hub](https://hub.docker.com/r/joseluisq/static-web-server/) and [GitHub Container Registry](https://github.com/static-web-server/static-web-server/pkgs/container/static-web-server)
+
 ## OS/Arch
 
 All Docker images are [Multi-Arch](https://www.docker.com/blog/how-to-rapidly-build-multi-architecture-images-with-buildx/) and the following operating systems and architectures are supported.
@@ -13,38 +15,44 @@ All Docker images are [Multi-Arch](https://www.docker.com/blog/how-to-rapidly-bu
 - `linux/arm/v6`
 - `linux/arm/v7`
 - `linux/arm64`
+- `linux/ppc64le`
+- `linux/s390x`
 
 !!! tip "SWS statically-linked binary"
-    All the Docker images use the SWS statically-linked binary, meaning that the binary is highly-optimized, performant, and dependency-free thanks to [musl libc](https://www.musl-libc.org/).
-
-View all images on [Docker Hub](https://hub.docker.com/r/joseluisq/static-web-server/).
+    All the Docker images use the SWS statically-linked binary, meaning that the binary is highly optimized, performant, and dependency-free thanks to [musl libc](https://www.musl-libc.org/).
 
 ## Run a container
 
-To give the server a quick try then just run the following commands.
+To give the server a quick try just run the following commands.
 
 !!! tip "Tips"
-    - [The SWS CLI arguments](/configuration/command-line-arguments/) can be provided directly to the container or omitted as shown below.
+    - [The SWS CLI arguments](../configuration/command-line-arguments.md) can be provided directly to the container or omitted as shown below.
     - A Docker volume like `-v $HOME/my-public-dir:/public` can be specified to overwrite the default root directory.
 
 To run SWS, there are several Docker image variants that you can use.
 
-**Scratch** image variant (just the binary)
+**Scratch** (just the binary)
 
 ```sh
 docker run --rm -it -p 8787:80 joseluisq/static-web-server:2 -g info
+# or
+docker run --rm -it -p 8787:80 ghcr.io/static-web-server/static-web-server:2 -g info
 ```
 
-**Alpine** Docker image variant
+**Alpine**
 
 ```sh
 docker run --rm -it -p 8787:80 joseluisq/static-web-server:2-alpine -g info
+# or
+docker run --rm -it -p 8787:80 ghcr.io/static-web-server/static-web-server:2-alpine -g info
 ```
 
-**Debian** Docker image variant
+**Debian**
 
 ```sh
 docker run --rm -it -p 8787:80 joseluisq/static-web-server:2-debian -g info
+# or
+docker run --rm -it -p 8787:80 ghcr.io/static-web-server/static-web-server:2-debian -g info
 ```
 
 ## Dockerfile
@@ -55,26 +63,32 @@ Extending the **Scratch** Docker image (just the binary)
 
 ```Dockerfile
 FROM joseluisq/static-web-server:2
+# or
+FROM ghcr.io/static-web-server/static-web-server:2
 # do stuff...
 ```
 
-Or the **Alpine** Docker image variant
+Or the **Alpine**
 
 ```Dockerfile
 FROM joseluisq/static-web-server:2-alpine
+# or
+FROM ghcr.io/static-web-server/static-web-server:2-alpine
 # do stuff...
 ```
 
-Or the **Debian** Docker image variant
+Or the **Debian**
 
 ```Dockerfile
 FROM joseluisq/static-web-server:2-debian
+# or
+FROM ghcr.io/static-web-server/static-web-server:2-debian
 # do stuff...
 ```
 
 ## Docker Compose
 
-Below a [Docker Compose](https://docs.docker.com/compose/) example using the [Traefik Proxy](https://traefik.io/traefik/).
+Below is a [Docker Compose](https://docs.docker.com/compose/) example using the [Traefik Proxy](https://traefik.io/traefik/).
 
 ```yaml
 version: "3.3"

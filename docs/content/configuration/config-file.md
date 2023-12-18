@@ -4,6 +4,10 @@
 
 It's disabled by default and can be enabled by passing a _string file path_ via the `-w, --config-file` option or its equivalent [SERVER_CONFIG_FILE](./../configuration/environment-variables.md#server_config_file) env.
 
+!!! info "The default config file path is checked at startup time"
+    If using the default config file path (`./config.toml`), SWS will attempt to load it at startup time.
+    If it is not found or can not be loaded then SWS will continue using the server defaults.
+
 ## TOML File (Manifest)
 
 Below is just an example showing all features with their default values.
@@ -26,8 +30,9 @@ cache-control-headers = true
 compression = true
 
 #### Error pages
-page404 = "./public/404.html"
-page50x = "./public/50x.html"
+# Note: If a relative path is used then it will be resolved under the root directory.
+page404 = "./404.html"
+page50x = "./50x.html"
 
 #### HTTP/2 + TLS
 http2 = false
@@ -75,6 +80,17 @@ redirect-trailing-slash = true
 #### Check for existing pre-compressed files
 compression-static = true
 
+#### Health-check endpoint (GET or HEAD `/health`)
+health = false
+
+#### List of index files
+# index-files = "index.html, index.htm"
+#### Maintenance Mode
+
+maintenance-mode = false
+# maintenance-mode-status = 503 
+# maintenance-mode-file = "./maintenance.html"
+
 ### Windows Only
 
 #### Run the web server as a Windows Service
@@ -121,10 +137,24 @@ compression-static = true
 # [[advanced.rewrites]]
 # source = "**/*.{png,ico,gif}"
 # destination = "/assets/favicon.ico"
+## Optional redirection
+# redirect = 301
 
 # [[advanced.rewrites]]
 # source = "**/*.{jpg,jpeg}"
 # destination = "/images/sws.png"
+
+### Virtual Hosting
+
+# [[advanced.virtual-hosts]]
+## But if the "Host" header matches this...
+# host = "sales.example.com"
+## ...then files will be served from here instead
+# root = "/var/sales/html"
+
+# [[advanced.virtual-hosts]]
+# host = "blog.example.com"
+# root = "/var/blog/html"
 ```
 
 ### General options
@@ -140,7 +170,7 @@ So they are equivalent to each other **except** for the `-w, --config-file` opti
 
 The TOML `[advanced]` section is intended for more complex features.
 
-For example [Custom HTTP Headers](../features/custom-http-headers.md) or [Custom URL Redirects](../features/url-redirects.md).
+For example [Custom HTTP Headers](../features/custom-http-headers.md), [Custom URL Redirects](../features/url-redirects.md), [URL Rewrites](../features/url-rewrites.md), or [Virtual Hosting](../features/virtual-hosting.md)
 
 ### Precedence
 

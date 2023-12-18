@@ -1,14 +1,20 @@
 name: devel-docker
 on:
   pull_request:
-  push:
-    branches:
-    - master
-    - staging
-    - trying
     paths:
       - docker/**/Dockerfile
       - scripts/ci/**/*.sh
+      - .github/workflows/devel.docker.yml
+  push:
+    branches:
+      - master
+      - staging
+      - trying
+    paths:
+      - docker/**/Dockerfile
+      - scripts/ci/**/*.sh
+      - .github/workflows/devel.docker.yml
+
 env:
   DOCKER_IMAGE: localhost:5000/github.com/static-web-server/static-web-server
 
@@ -23,6 +29,8 @@ jobs:
           - linux/arm64
           - linux/arm/v7
           - linux/arm/v6
+          - linux/ppc64le
+          - linux/s390x
     runs-on: ubuntu-22.04
     services:
       registry:
@@ -136,6 +144,8 @@ jobs:
           - linux/arm64
           - linux/arm/v7
           - linux/arm/v6
+          - linux/ppc64le
+          - linux/s390x
     runs-on: ubuntu-22.04
     services:
       registry:
@@ -238,4 +248,3 @@ jobs:
         run: |
           rm -rf /tmp/.buildx-cache
           mv /tmp/.buildx-cache-new /tmp/.buildx-cache
-

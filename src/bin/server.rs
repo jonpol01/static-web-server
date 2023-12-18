@@ -12,20 +12,20 @@
 #[global_allocator]
 static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
-use static_web_server::Result;
+use static_web_server::{Result, Settings};
 
 fn main() -> Result {
+    let opts = Settings::get(true)?;
+
     #[cfg(windows)]
     {
-        use static_web_server::settings::{Commands, Settings};
+        use static_web_server::settings::Commands;
         use static_web_server::winservice;
-
-        let opts = Settings::get()?;
 
         if let Some(commands) = opts.general.commands {
             match commands {
                 Commands::Install {} => {
-                    return winservice::install_service(opts.general.config_file);
+                    return winservice::install_service(&opts.general.config_file);
                 }
                 Commands::Uninstall {} => {
                     return winservice::uninstall_service();
@@ -37,7 +37,7 @@ fn main() -> Result {
     }
 
     // Run the server by default
-    static_web_server::Server::new()?.run_standalone()?;
+    static_web_server::Server::new(opts)?.run_standalone()?;
 
     Ok(())
 }

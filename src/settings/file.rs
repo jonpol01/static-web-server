@@ -74,7 +74,7 @@ pub struct Redirects {
     pub source: String,
     /// Redirect destination.
     pub destination: String,
-    /// Redirect type.
+    /// Redirect type either 301 (Moved Permanently) or 302 (Found).
     pub kind: RedirectsKind,
 }
 
@@ -86,6 +86,18 @@ pub struct Rewrites {
     pub source: String,
     /// Rewrite destination.
     pub destination: String,
+    /// Optional redirect type either 301 (Moved Permanently) or 302 (Found).
+    pub redirect: Option<RedirectsKind>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "kebab-case")]
+/// Represents virtual hosts with different root directories
+pub struct VirtualHosts {
+    /// The value to check for in the "Host" header
+    pub host: String,
+    /// The root directory for this virtual host
+    pub root: Option<PathBuf>,
 }
 
 /// Advanced server options only available in configuration file mode.
@@ -98,6 +110,8 @@ pub struct Advanced {
     pub rewrites: Option<Vec<Rewrites>>,
     /// Redirects
     pub redirects: Option<Vec<Redirects>>,
+    /// Name-based virtual hosting
+    pub virtual_hosts: Option<Vec<VirtualHosts>>,
 }
 
 /// General server options available in configuration file mode.
@@ -173,6 +187,9 @@ pub struct General {
     /// Cors expose headers feature.
     pub cors_expose_headers: Option<String>,
 
+    /// List of files to be used as an index for requests ending with the slash character (‘/’).
+    pub index_files: Option<String>,
+
     /// Directory listing feature.
     #[cfg(feature = "directory-listing")]
     #[cfg_attr(docsrs, doc(cfg(feature = "directory-listing")))]
@@ -216,6 +233,18 @@ pub struct General {
 
     /// Ignore hidden files feature.
     pub ignore_hidden_files: Option<bool>,
+
+    /// Health endpoint feature.
+    pub health: Option<bool>,
+
+    /// Maintenance mode feature.
+    pub maintenance_mode: Option<bool>,
+
+    /// Custom HTTP status for when entering into maintenance mode.
+    pub maintenance_mode_status: Option<u16>,
+
+    /// Custom maintenance mode HTML file.
+    pub maintenance_mode_file: Option<PathBuf>,
 
     #[cfg(windows)]
     /// windows service feature.

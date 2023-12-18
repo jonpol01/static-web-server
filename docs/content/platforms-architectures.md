@@ -3,7 +3,7 @@
 Currently, only the following platforms/architectures are supported.
 
 !!! tip "Docker tip"
-    For the list of Docker images supported see [Docker OS/Arch](/features/docker/#osarch) page.
+    For the list of Docker images supported see [Docker OS/Arch](./features/docker.md#osarch) page.
 
 ## Linux
 
@@ -43,7 +43,7 @@ Currently, only the following platforms/architectures are supported.
   - `x86_64-pc-windows-gnu`
 
 #### ARM64
-  - ~~`aarch64-pc-windows-msvc`~~ (temporarily disabled until [briansmith/ring#1167](https://github.com/briansmith/ring/issues/1167))
+  - `aarch64-pc-windows-msvc`
 
 ## FreeBSD
 
@@ -52,3 +52,21 @@ Currently, only the following platforms/architectures are supported.
 
 #### x86_64
   - `x86_64-unknown-freebsd`
+
+## NetBSD
+
+#### x86_64
+  - `x86_64-unknown-netbsd`
+
+## Illumos
+
+#### x86_64
+  - `x86_64-unknown-illumos`
+
+## PowerPC
+
+- `powerpc64le-unknown-linux-gnu`
+
+## S390X
+
+- `s390x-unknown-linux-gnu`

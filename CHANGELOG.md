@@ -7,6 +7,207 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _**Note:** See changelog for v1 under the [1.x](https://github.com/static-web-server/static-web-server/blob/1.x/CHANGELOG.md) branch._
 
+## v2.24.1 - 2023-11-15
+
+This new `v2.24.1` release brings dependency security updates and bug fixes. In particular, it fixes an issue when executing the previous Windows ARM64 build and other improvements.
+
+__Fixes__
+
+- [c0c88f1](https://github.com/static-web-server/static-web-server/commit/c0c88f1) Bugfix/security dependency updates including tokio, http, rustls-pemfile, tracing, clap and other crates.
+- [f4e9142](https://github.com/static-web-server/static-web-server/commit/f4e9142) Windows ARM64 binary does not execute due to missing DLLs. PR [#290](https://github.com/static-web-server/static-web-server/pull/290).
+
+__Refactorings__
+
+- [990bb7c](https://github.com/static-web-server/static-web-server/commit/990bb7c) Statically link the C runtime for Windows MSVC x86 (32-bit) build. PR [#291](https://github.com/static-web-server/static-web-server/pull/291).
+
+__Docs__
+
+- [e99d989](https://github.com/static-web-server/static-web-server/commit/e99d989) Fix typos in README file. PR [#287](https://github.com/static-web-server/static-web-server/pull/287) by [@dynamite-bud](https://github.com/dynamite-bud) (also [a987e37](https://github.com/static-web-server/static-web-server/commit/a987e37)).
+
+__Misc__
+
+- [3099dba](https://github.com/static-web-server/static-web-server/commit/3099dba) CI: Manual Docker build CI workflow for testing. PR [#286](https://github.com/static-web-server/static-web-server/pull/286).
+- [680323c](https://github.com/static-web-server/static-web-server/commit/680323c) CI: Manual release build CI workflow for testing. PR [#288](https://github.com/static-web-server/static-web-server/pull/288).
+
+## v2.24.0 - 2023-11-09
+
+This new `v2.24.0` release brings dependency security updates and bug fixes. It introduces three new targets (PowerPC (PPC64LE), S390x and Windows ARM64). Features like automatic TOML configuration file detection at startup and 404/50x error pages loading at runtime as well as several improvements.
+
+__Fixes__
+
+- [e767938](https://github.com/static-web-server/static-web-server/commit/e767938) Bugfix/security dependency updates including ring, rustls, regex, clap, serde, futures, brotli and other crates (also [b0c0775](https://github.com/static-web-server/static-web-server/commit/b0c0775)).
+- [4fa09ab](https://github.com/static-web-server/static-web-server/commit/4fa09ab) CI: `cross` does not build when using `libc` 0.2.149+ on NetBSD.
+
+__Features__
+
+- [e89ce29](https://github.com/static-web-server/static-web-server/commit/e89ce29) Automatic TOML configuration file detection at startup. PR [#281](https://github.com/static-web-server/static-web-server/pull/281). See [docs](https://static-web-server.net/configuration/config-file/).
+- [fd4bfd4](https://github.com/static-web-server/static-web-server/commit/fd4bfd4) Linux PowerPC (PPC64LE) and S390x targets (also Docker images). PR [#159](https://github.com/static-web-server/static-web-server/pull/159). See [docs](https://static-web-server.net/platforms-architectures/#powerpc).
+- [02c6d3e](https://github.com/static-web-server/static-web-server/commit/02c6d3e) Windows ARM64 target. PR [#283](https://github.com/static-web-server/static-web-server/pull/283). See [docs](https://static-web-server.net/platforms-architectures/#arm64_2).
+- [1fa9261](https://github.com/static-web-server/static-web-server/commit/1fa9261) Load 404 and 50x error pages at runtime. PR [#284](https://github.com/static-web-server/static-web-server/pull/284) resolves [#98](https://github.com/static-web-server/static-web-server/issues/98) reported by [@Dexus](https://github.com/Dexus).
+
+__Refactorings__
+
+- [4de9acd](https://github.com/static-web-server/static-web-server/commit/4de9acd) Allowed methods response for `OPTIONS` file requests. PR [#278](https://github.com/static-web-server/static-web-server/pull/278).
+- [d06ad0f](https://github.com/static-web-server/static-web-server/commit/d06ad0f) Remove some unused TLS configuration APIs and use defaults directly. PR [#279](https://github.com/static-web-server/static-web-server/pull/279).
+- [ab16187](https://github.com/static-web-server/static-web-server/commit/ab16187) Improve the server maintenance mode debug logs. PR [#282](https://github.com/static-web-server/static-web-server/pull/282).
+
+__Docs__
+
+- [2798725](https://github.com/static-web-server/static-web-server/commit/2798725) Linux PowerPC (PPC64LE) and S390x targets information. See [docs](https://static-web-server.net/download-and-install/#powerpc).
+
+## v2.23.0 - 2023-10-15
+
+This new `v2.23.0` release brings several dependency updates and bug fixes. New features like multiple index files and maintenance mode support, more performance and resource optimizations (~15% less memory usage), a bug fix for the directory listing, documentation for using SWS in WebAssembly and TrueNAS SCALE and other improvements.
+
+__Fixes__
+
+- [85ea7c4](https://github.com/static-web-server/static-web-server/commit/85ea7c4) Bugfix/security dependency updates including tokio, regex, clap, async-compression (zstd, flate2), tracing, serde and other crates (also [27cb09d](https://github.com/static-web-server/static-web-server/commit/27cb09d)).
+- [7c5df01](https://github.com/static-web-server/static-web-server/commit/7c5df01) Wrong directory type for empty files in JSON directory listing. PR [#271](https://github.com/static-web-server/static-web-server/pull/271) resolves [#270](https://github.com/static-web-server/static-web-server/issues/270) reported by [@carueda](https://github.com/carueda).
+- [89d70d0](https://github.com/static-web-server/static-web-server/commit/89d70d0) Docker: Debian 12.2 image update.
+- [aeebc6f](https://github.com/static-web-server/static-web-server/commit/aeebc6f) Installer: Installer script breakage. PR [#274](https://github.com/static-web-server/static-web-server/pull/274) resolves [#273](https://github.com/static-web-server/static-web-server/issues/273) reported by [@kzhui125](https://github.com/kzhui125).
+- [e3cd810](https://github.com/static-web-server/static-web-server/commit/e3cd810) Crate: Docs links in compression module.
+
+__Features__
+
+- [efb2c0c](https://github.com/static-web-server/static-web-server/commit/efb2c0c) Multiple index files support. PR [#267](https://github.com/static-web-server/static-web-server/pull/267) resolves [#257](https://github.com/static-web-server/static-web-server/issues/257) suggested by [@moinologics](https://github.com/moinologics). See [docs](https://static-web-server.net/features/multiple-index-files/).
+- [9e50491](https://github.com/static-web-server/static-web-server/commit/9e50491) Maintenance mode support. PR [#272](https://github.com/static-web-server/static-web-server/pull/272) resolves [#268](https://github.com/static-web-server/static-web-server/issues/268) suggested by [@tuxpizza](https://github.com/tuxpizza). See [docs](https://static-web-server.net/features/maintenance-mode/).
+
+__Refactorings__
+
+- [d53c252](https://github.com/static-web-server/static-web-server/commit/d53c252) Optimize buffer size for static file reads (Linux/Unix targets). PR [#269](https://github.com/static-web-server/static-web-server/pull/269).
+
+__Docs__
+
+- [7a407c6](https://github.com/static-web-server/static-web-server/commit/7a407c6) WebAssembly page and Wasmer Wasix example. See [docs](https://static-web-server.net/features/webassembly/).
+- [b70058c](https://github.com/static-web-server/static-web-server/commit/b70058c) TrueNAS SCALE installation via TrueCharts. See [docs](https://static-web-server.net/download-and-install/#truenas-scale/).
+- [ddbf881](https://github.com/static-web-server/static-web-server/commit/ddbf881) Improve content across several pages.
+
+**Acknowledgments**
+
+Thanks to our new donor [@kirillt](https://github.com/kirillt) for supporting the project.
+
+## v2.22.1 - 2023-09-19
+
+This new `v2.22.1` release brings several dependency updates and bug fixes. In particular, it fixes an issue when capturing glob groups for URL Rewrites and Redirects.
+
+__Fixes__
+
+- [0b5f590](https://github.com/static-web-server/static-web-server/commit/0b5f590) Bugfix/security dependency updates including aho-corasick (regex), clap, syn and other crates.
+- [2e3e49f](https://github.com/static-web-server/static-web-server/commit/2e3e49f) URL Rewrites and Redirects do not capture glob groups like `/dir/{*}` correctly. PR [#265](https://github.com/static-web-server/static-web-server/pull/265) resolves [#264](https://github.com/static-web-server/static-web-server/issues/264) reported by [@clembu](https://github.com/clembu).
+
+## v2.22.0 - 2023-09-18
+
+This new `v2.22.0` release brings several dependency updates and bug fixes. It fixes a performance regression leading to better RAM utilization (~28% less) in comparison to the previous releases with a slight req/sec increase, a new Illumos x86_64 target, as well as improved responsiveness of the directory listing HTML page for mobile and desktop screens.
+
+__Fixes__
+
+- [232677c](https://github.com/static-web-server/static-web-server/commit/232677c) Bugfix/security dependency updates including rustls, async-compression, chrono, clap, serde, regex and other crates. Also [b2322a9](https://github.com/static-web-server/static-web-server/commit/b2322a9).
+
+__Features__
+
+- [2ec408c](https://github.com/static-web-server/static-web-server/commit/2ec408c) Illumos x86_64 target. PR [#258](https://github.com/static-web-server/static-web-server/pull/258).
+
+__Refactorings__
+
+- [698a244](https://github.com/static-web-server/static-web-server/commit/698a244) Prefer optional slice references for several `vec` data arguments.
+- [257d47f](https://github.com/static-web-server/static-web-server/commit/257d47f) Remove typed headers when appending `cache-control`.
+- [48d1910](https://github.com/static-web-server/static-web-server/commit/48d1910) Improve the responsiveness of the directory listing HTML view. PR [#260](https://github.com/static-web-server/static-web-server/pull/260) resolves [#259](https://github.com/static-web-server/static-web-server/issues/259) reported by [@anantakrishna](https://github.com/anantakrishna).
+- [e551d67](https://github.com/static-web-server/static-web-server/commit/e551d67) Increase MSRV to 1.70.0.
+
+## v2.21.1 - 2023-08-23
+
+This new `v2.21.1` release brings several security dependency updates. In particular for `serde_derive` and `rustls-webpki` dependencies.
+
+__Fixes__
+
+- [c6172b4](https://github.com/static-web-server/static-web-server/commit/c6172b4) Security dependency updates including serde_derive, rustls-webpki, h2 and other crates.
+  - `serde_derive`: potential supply chain attack associated with shipping
+precompiled binaries (silently) [serde-rs/serde#2538](https://github.com/serde-rs/serde/issues/2538)
+  - `rustls-webpki`: potential CPU denial of service in certificate path building [GHSA-fh2r-99q2-6mmg](https://github.com/advisories/GHSA-fh2r-99q2-6mmg)
+
+## v2.21.0 - 2023-08-19
+
+This new `v2.21.0` release brings several dependency updates and bug fixes, a new NetBSD x86_64 target, Virtual Hosting support, and other improvements.
+
+__Fixes__
+
+- [91d8bf1](https://github.com/static-web-server/static-web-server/commit/91d8bf1) Bugfix/security dependency updates including tokio, regex, clap, serde, globset and other crates.
+- [2142053](https://github.com/static-web-server/static-web-server/commit/2142053) Docker: Alpine 3.17.5 update.
+- [37a5113](https://github.com/static-web-server/static-web-server/commit/37a5113) Docker: Debian 12.1 update.
+
+__Features__
+
+- [94e050b](https://github.com/static-web-server/static-web-server/commit/94e050b) NetBSD x86_64 target (`x86_64-unknown-netbsd`).
+- [7baf569](https://github.com/static-web-server/static-web-server/commit/7baf569) Virtual Hosting support. PR [#252](https://github.com/static-web-server/static-web-server/pull/252) by [@mac-chaffee](https://github.com/mac-chaffee) resolves [#171](https://github.com/static-web-server/static-web-server/issues/171) suggested by [@kshpytsya](https://github.com/kshpytsya). See [docs](https://static-web-server.net/features/virtual-hosting/).
+
+__Docs__
+
+- [3f63a0b](https://github.com/static-web-server/static-web-server/commit/3f63a0b) docs: improve several feature pages.
+
+## v2.20.2 - 2023-08-03
+
+This new `v2.20.2` release brings several dependency updates and bug fixes. Also, it fixes a regression in Windows introduced by the previous *v2.20.1* release.
+
+__Fixes__
+
+- [bba9083](https://github.com/static-web-server/static-web-server/commit/bba9083) Bugfix/security dependency updates including jemallocator, rustls, clap, serde, globset and other crates.
+- [8cc073f](https://github.com/static-web-server/static-web-server/commit/8cc073f) Unable to initialize logger in Windows. [#248](https://github.com/static-web-server/static-web-server/issues/248) reported by [@tripplet](https://github.com/tripplet).
+
+__Refactorings__
+
+- [e9d33ca](https://github.com/static-web-server/static-web-server/commit/e9d33ca) Basic-auth check request function.
+
+## v2.20.1 - 2023-07-20
+
+This new `v2.20.1` release brings several dependency updates and bug fixes. In particular, one fix for a regression introduced by the previous *v2.20.0* release as well as other improvements.
+
+__Fixes__
+
+- [1fe464b](https://github.com/static-web-server/static-web-server/commit/1fe464b) Bugfix/security dependency updates including zstd, clap, serde, bcrypt, globset, signal and other crates (also [b763b50](https://github.com/static-web-server/static-web-server/commit/b763b50)).
+- [3cf13dc](https://github.com/static-web-server/static-web-server/commit/3cf13dc) URL Rewrites and Redirects don't work properly without replacements. PR [#244](https://github.com/static-web-server/static-web-server/pull/244) fixes [#243](https://github.com/static-web-server/static-web-server/issues/243) reported by [@domi2120](https://github.com/domi2120).
+- [8da2b69](https://github.com/static-web-server/static-web-server/commit/8da2b69) Alpine 3.17.4.
+
+__Refactorings__
+
+- [949c539](https://github.com/static-web-server/static-web-server/commit/949c539) Initialize log system at config level.
+- [7fc0e1b](https://github.com/static-web-server/static-web-server/commit/7fc0e1b) Improve start-up server log information.
+- [032aaf3](https://github.com/static-web-server/static-web-server/commit/032aaf3) CI: Post-release script and devel Makefile.
+
+## v2.20.0 - 2023-07-12
+
+This new `v2.20.0` release brings several dependency updates and bug fixes, advanced features like Glob pattern replacements for URL Redirects and Rewrites, a new health-check endpoint, GitHub Container Registry (GHCR) Docker images as well as other improvements.
+
+__Fixes__
+
+- [9b84786](https://github.com/static-web-server/static-web-server/commit/9b84786) Bugfix/security dependency updates including tokio, hyper, h2, rustls, clap, serde, toml and other crates (also [9b84786](https://github.com/static-web-server/static-web-server/commit/9b84786)).
+- [b8473aa](https://github.com/static-web-server/static-web-server/commit/b8473aa) Potential panic when invalid content range.
+- [2331c88](https://github.com/static-web-server/static-web-server/commit/2331c88) CI: Post-release update script.
+
+__Features__
+
+- [4a10635](https://github.com/static-web-server/static-web-server/commit/4a10635) Docker: GitHub Container Registry (GHCR) Docker images. PR [#232](https://github.com/static-web-server/static-web-server/pull/232) resolves [#225](https://github.com/static-web-server/static-web-server/issues/225) suggested by [@jcgruenhage](https://github.com/jcgruenhage). See [docs](https://static-web-server.net/features/docker/).
+- [06955e9](https://github.com/static-web-server/static-web-server/commit/06955e9) Redirect option for URL Rewrites feature. PR [#231](https://github.com/static-web-server/static-web-server/pull/231). See [docs](https://static-web-server.net/features/health-endpoint/).
+- [3a47ef6](https://github.com/static-web-server/static-web-server/commit/3a47ef6) Replacements support for URL Rewrites destination. PR [#235](https://github.com/static-web-server/static-web-server/pull/235). See [docs](https://static-web-server.net/features/url-rewrites/).
+- [7c66c5c](https://github.com/static-web-server/static-web-server/commit/7c66c5c) Replacements support for URL Redirects destination. PR [#239](https://github.com/static-web-server/static-web-server/pull/239). See [docs](https://static-web-server.net/features/url-redirects/).
+- [b42214b](https://github.com/static-web-server/static-web-server/commit/b42214b) Health-check endpoint. PR [#238](https://github.com/static-web-server/static-web-server/pull/238) resolves [#237](https://github.com/static-web-server/static-web-server/issues/237) by [@glehmann](https://github.com/glehmann). See [docs](https://static-web-server.net/features/health-endpoint/).
+
+__Refactorings__
+
+- [1bce204](https://github.com/static-web-server/static-web-server/commit/1bce204) Improve auto index options.
+- [b2e4e49](https://github.com/static-web-server/static-web-server/commit/b2e4e49) Improve directory listing styling for HTML display.
+- [e23a06d](https://github.com/static-web-server/static-web-server/commit/e23a06d) Lib: Crate docs metadata.
+
+__Docs__
+
+- [506f54e](https://github.com/static-web-server/static-web-server/commit/506f54e) Systemd service example. See [docs](https://static-web-server.net/features/file-descriptor-socket-passing/#service-example).
+- [eb2887f](https://github.com/static-web-server/static-web-server/commit/eb2887f) Nix package and module maintainers ([@figsoda](https://github.com/figsoda), [@mac-chaffee](https://github.com/mac-chaffee)). See [docs](https://static-web-server.net/download-and-install/#nixos).
+- [031931f](https://github.com/static-web-server/static-web-server/commit/031931f) GHCR Docker images description. See [docs](https://static-web-server.net/features/docker).
+- [21c90db](https://github.com/static-web-server/static-web-server/commit/21c90db) Several documentation improvements.
+
+**Acknowledgments**
+
+Thanks to our new donor [@kirillt](https://github.com/kirillt) for supporting the project.
+
 ## v2.19.0 - 2023-06-16
 
 This new `v2.19.0` release brings several dependency updates/bug fixes (including minor versions), a new [Debian 12 "bookworm"](https://www.debian.org/News/2023/20230610) Docker image, more Cargo features for controlling the SWS feature set when building, bug fixes for the SWS crate and one regression for the `fallback-page` feature, documentation for cross-compiling SWS from source using [Zig as a linker](https://andrewkelley.me/post/zig-cc-powerful-drop-in-replacement-gcc-clang.html) as well as other improvements.

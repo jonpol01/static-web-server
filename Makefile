@@ -127,7 +127,7 @@ docker.image.alpine:
 
 docker.image.debian:
 	@echo "Creating Docker Alpine image..."
-	@cp -frp ./target/x86_64-unknown-linux-gnu/release/static-web-server ./docker/devel/
+	@cp -frp ./target/x86_64-unknown-linux-musl/release/static-web-server ./docker/devel/
 	@docker build \
 		--platform="linux/x86_64" \
 		--rm=true -f ./docker/devel/Dockerfile.debian \
@@ -139,7 +139,7 @@ docker.image.debian:
 ########## Production tasks ###########
 #######################################
 
-# Compile release binary 
+# Compile release binary
 define build_release =
 	set -e
 	set -u
@@ -196,7 +196,7 @@ define build_release_shrink =
 	echo "Releases size shrinking completed!"
 endef
 
-# Creates release files (tarballs, zipballs) 
+# Creates release files (tarballs, zipballs)
 define build_release_files =
 	set -e
 	set -u
@@ -262,14 +262,12 @@ crate-docs:
 
 crate-docs-dev:
 	@env \
-		RUSTFLAGS="--cfg docsrs" \
 		RUSTDOCFLAGS="--cfg docsrs" \
 			cargo doc --lib --no-deps --all-features --document-private-items
 	@echo "Crate documentation: http://localhost:8787/static_web_server"
 	@static-web-server -p 8787 -d target/doc/ \
 		& watchman-make -p 'src/**/*.rs' --run '\
 			env \
-				RUSTFLAGS="--cfg docsrs" \
 				RUSTDOCFLAGS="--cfg docsrs" \
 					cargo doc --lib --no-deps --all-features --document-private-items'
 .PHONY: crate-docs-dev

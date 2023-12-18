@@ -10,8 +10,10 @@ use clap::Parser;
 use globset::{Glob, GlobMatcher};
 use headers::HeaderMap;
 use hyper::StatusCode;
+use regex::Regex;
+use std::path::{Path, PathBuf};
 
-use crate::{Context, Result};
+use crate::{helpers, logger, Context, Result};
 
 pub mod cli;
 pub mod file;
@@ -20,6 +22,8 @@ pub mod file;
 pub use cli::Commands;
 
 use cli::General;
+
+use self::file::{RedirectsKind, Settings as FileSettings};
 
 /// The `headers` file options.
 pub struct Headers {
@@ -31,20 +35,30 @@ pub struct Headers {
 
 /// The `Rewrites` file options.
 pub struct Rewrites {
-    /// Source pattern glob matcher
-    pub source: GlobMatcher,
+    /// Source pattern Regex matcher
+    pub source: Regex,
     /// A local file that must exist
     pub destination: String,
+    /// Optional redirect type either 301 (Moved Permanently) or 302 (Found).
+    pub redirect: Option<RedirectsKind>,
 }
 
 /// The `Redirects` file options.
 pub struct Redirects {
-    /// Source pattern glob matcher
-    pub source: GlobMatcher,
+    /// Source pattern Regex matcher
+    pub source: Regex,
     /// A local file that must exist
     pub destination: String,
     /// Redirection type either 301 (Moved Permanently) or 302 (Found)
     pub kind: StatusCode,
+}
+
+/// The `VirtualHosts` file options.
+pub struct VirtualHosts {
+    /// The value to check for in the "Host" header
+    pub host: String,
+    /// The root directory for this virtual host
+    pub root: PathBuf,
 }
 
 /// The `advanced` file options.
@@ -55,6 +69,8 @@ pub struct Advanced {
     pub rewrites: Option<Vec<Rewrites>>,
     /// Redirects list.
     pub redirects: Option<Vec<Redirects>>,
+    /// Name-based virtual hosting
+    pub virtual_hosts: Option<Vec<VirtualHosts>>,
 }
 
 /// The full server CLI and File options.
@@ -66,8 +82,10 @@ pub struct Settings {
 }
 
 impl Settings {
-    /// Handles CLI and config file options and converging them into one.
-    pub fn get() -> Result<Settings> {
+    /// Reads CLI/Env and config file options returning the server settings.
+    /// It also takes care to initialize the logging system with its level
+    /// once the `general` settings are determined.
+    pub fn get(log_init: bool) -> Result<Settings> {
         let opts = General::parse();
 
         // Define the general CLI/file options
@@ -127,6 +145,12 @@ impl Settings {
         let mut log_remote_address = opts.log_remote_address;
         let mut redirect_trailing_slash = opts.redirect_trailing_slash;
         let mut ignore_hidden_files = opts.ignore_hidden_files;
+        let mut index_files = opts.index_files;
+        let mut health = opts.health;
+
+        let mut maintenance_mode = opts.maintenance_mode;
+        let mut maintenance_mode_status = opts.maintenance_mode_status;
+        let mut maintenance_mode_file = opts.maintenance_mode_file;
 
         // Windows-only options
         #[cfg(windows)]
@@ -137,240 +161,332 @@ impl Settings {
 
         // Handle "config file options" and set them when available
         // NOTE: All config file based options shouldn't be mandatory, therefore `Some()` wrapped
-        if let Some(ref p) = opts.config_file {
-            if p.is_file() {
-                let path_resolved = p
-                    .canonicalize()
-                    .with_context(|| "error resolving toml config file path")?;
+        if let Some((settings, config_file_resolved)) = read_file_settings(&opts.config_file)? {
+            config_file = config_file_resolved;
 
-                let settings = file::Settings::read(&path_resolved)
-                    .with_context(|| {
-                        "can not read toml config file because has invalid or unsupported format/options"
-                    })?;
+            // File-based "general" options
+            let has_general_settings = settings.general.is_some();
+            if has_general_settings {
+                let general = settings.general.unwrap();
 
-                config_file = Some(path_resolved);
-
-                // File-based "general" options
-                if let Some(general) = settings.general {
-                    if let Some(v) = general.host {
-                        host = v
-                    }
-                    if let Some(v) = general.port {
-                        port = v
-                    }
-                    if let Some(v) = general.root {
-                        root = v
-                    }
-                    if let Some(ref v) = general.log_level {
-                        log_level = v.name().to_lowercase();
-                    }
-                    if let Some(v) = general.cache_control_headers {
-                        cache_control_headers = v
-                    }
-                    #[cfg(feature = "compression")]
-                    if let Some(v) = general.compression {
-                        compression = v
-                    }
-                    #[cfg(feature = "compression")]
-                    if let Some(v) = general.compression_static {
-                        compression_static = v
-                    }
-                    if let Some(v) = general.page404 {
-                        page404 = v
-                    }
-                    if let Some(v) = general.page50x {
-                        page50x = v
-                    }
-                    #[cfg(feature = "http2")]
-                    if let Some(v) = general.http2 {
-                        http2 = v
-                    }
-                    #[cfg(feature = "http2")]
-                    if let Some(v) = general.http2_tls_cert {
-                        http2_tls_cert = Some(v)
-                    }
-                    #[cfg(feature = "http2")]
-                    if let Some(v) = general.http2_tls_key {
-                        http2_tls_key = Some(v)
-                    }
-                    #[cfg(feature = "http2")]
-                    if let Some(v) = general.https_redirect {
-                        https_redirect = v
-                    }
-                    #[cfg(feature = "http2")]
-                    if let Some(v) = general.https_redirect_host {
-                        https_redirect_host = v
-                    }
-                    #[cfg(feature = "http2")]
-                    if let Some(v) = general.https_redirect_from_port {
-                        https_redirect_from_port = v
-                    }
-                    #[cfg(feature = "http2")]
-                    if let Some(v) = general.https_redirect_from_hosts {
-                        https_redirect_from_hosts = v
-                    }
-                    #[cfg(feature = "http2")]
-                    match general.security_headers {
-                        Some(v) => security_headers = v,
-                        _ => {
-                            if http2 {
-                                security_headers = true;
-                            }
+                if let Some(v) = general.host {
+                    host = v
+                }
+                if let Some(v) = general.port {
+                    port = v
+                }
+                if let Some(v) = general.root {
+                    root = v
+                }
+                if let Some(ref v) = general.log_level {
+                    log_level = v.name().to_lowercase();
+                }
+                if let Some(v) = general.cache_control_headers {
+                    cache_control_headers = v
+                }
+                #[cfg(feature = "compression")]
+                if let Some(v) = general.compression {
+                    compression = v
+                }
+                #[cfg(feature = "compression")]
+                if let Some(v) = general.compression_static {
+                    compression_static = v
+                }
+                if let Some(v) = general.page404 {
+                    page404 = v
+                }
+                if let Some(v) = general.page50x {
+                    page50x = v
+                }
+                #[cfg(feature = "http2")]
+                if let Some(v) = general.http2 {
+                    http2 = v
+                }
+                #[cfg(feature = "http2")]
+                if let Some(v) = general.http2_tls_cert {
+                    http2_tls_cert = Some(v)
+                }
+                #[cfg(feature = "http2")]
+                if let Some(v) = general.http2_tls_key {
+                    http2_tls_key = Some(v)
+                }
+                #[cfg(feature = "http2")]
+                if let Some(v) = general.https_redirect {
+                    https_redirect = v
+                }
+                #[cfg(feature = "http2")]
+                if let Some(v) = general.https_redirect_host {
+                    https_redirect_host = v
+                }
+                #[cfg(feature = "http2")]
+                if let Some(v) = general.https_redirect_from_port {
+                    https_redirect_from_port = v
+                }
+                #[cfg(feature = "http2")]
+                if let Some(v) = general.https_redirect_from_hosts {
+                    https_redirect_from_hosts = v
+                }
+                #[cfg(feature = "http2")]
+                match general.security_headers {
+                    Some(v) => security_headers = v,
+                    _ => {
+                        if http2 {
+                            security_headers = true;
                         }
-                    }
-                    #[cfg(not(feature = "http2"))]
-                    if let Some(v) = general.security_headers {
-                        security_headers = v
-                    }
-                    if let Some(ref v) = general.cors_allow_origins {
-                        cors_allow_origins = v.to_owned()
-                    }
-                    if let Some(ref v) = general.cors_allow_headers {
-                        cors_allow_headers = v.to_owned()
-                    }
-                    if let Some(ref v) = general.cors_expose_headers {
-                        cors_expose_headers = v.to_owned()
-                    }
-                    #[cfg(feature = "directory-listing")]
-                    if let Some(v) = general.directory_listing {
-                        directory_listing = v
-                    }
-                    #[cfg(feature = "directory-listing")]
-                    if let Some(v) = general.directory_listing_order {
-                        directory_listing_order = v
-                    }
-                    #[cfg(feature = "directory-listing")]
-                    if let Some(v) = general.directory_listing_format {
-                        directory_listing_format = v
-                    }
-                    #[cfg(feature = "basic-auth")]
-                    if let Some(ref v) = general.basic_auth {
-                        basic_auth = v.to_owned()
-                    }
-                    if let Some(v) = general.fd {
-                        fd = Some(v)
-                    }
-                    if let Some(v) = general.threads_multiplier {
-                        threads_multiplier = v
-                    }
-                    if let Some(v) = general.max_blocking_threads {
-                        max_blocking_threads = v
-                    }
-                    if let Some(v) = general.grace_period {
-                        grace_period = v
-                    }
-                    #[cfg(feature = "fallback-page")]
-                    if let Some(v) = general.page_fallback {
-                        page_fallback = v
-                    }
-                    if let Some(v) = general.log_remote_address {
-                        log_remote_address = v
-                    }
-                    if let Some(v) = general.redirect_trailing_slash {
-                        redirect_trailing_slash = v
-                    }
-                    if let Some(v) = general.ignore_hidden_files {
-                        ignore_hidden_files = v
-                    }
-
-                    // Windows-only options
-                    #[cfg(windows)]
-                    if let Some(v) = general.windows_service {
-                        windows_service = v
                     }
                 }
+                #[cfg(not(feature = "http2"))]
+                if let Some(v) = general.security_headers {
+                    security_headers = v
+                }
+                if let Some(ref v) = general.cors_allow_origins {
+                    cors_allow_origins = v.to_owned()
+                }
+                if let Some(ref v) = general.cors_allow_headers {
+                    cors_allow_headers = v.to_owned()
+                }
+                if let Some(ref v) = general.cors_expose_headers {
+                    cors_expose_headers = v.to_owned()
+                }
+                #[cfg(feature = "directory-listing")]
+                if let Some(v) = general.directory_listing {
+                    directory_listing = v
+                }
+                #[cfg(feature = "directory-listing")]
+                if let Some(v) = general.directory_listing_order {
+                    directory_listing_order = v
+                }
+                #[cfg(feature = "directory-listing")]
+                if let Some(v) = general.directory_listing_format {
+                    directory_listing_format = v
+                }
+                #[cfg(feature = "basic-auth")]
+                if let Some(ref v) = general.basic_auth {
+                    basic_auth = v.to_owned()
+                }
+                if let Some(v) = general.fd {
+                    fd = Some(v)
+                }
+                if let Some(v) = general.threads_multiplier {
+                    threads_multiplier = v
+                }
+                if let Some(v) = general.max_blocking_threads {
+                    max_blocking_threads = v
+                }
+                if let Some(v) = general.grace_period {
+                    grace_period = v
+                }
+                #[cfg(feature = "fallback-page")]
+                if let Some(v) = general.page_fallback {
+                    page_fallback = v
+                }
+                if let Some(v) = general.log_remote_address {
+                    log_remote_address = v
+                }
+                if let Some(v) = general.redirect_trailing_slash {
+                    redirect_trailing_slash = v
+                }
+                if let Some(v) = general.ignore_hidden_files {
+                    ignore_hidden_files = v
+                }
+                if let Some(v) = general.health {
+                    health = v
+                }
+                if let Some(v) = general.index_files {
+                    index_files = v
+                }
+                if let Some(v) = general.maintenance_mode {
+                    maintenance_mode = v
+                }
+                if let Some(v) = general.maintenance_mode_status {
+                    maintenance_mode_status =
+                        StatusCode::from_u16(v).with_context(|| "invalid HTTP status code")?
+                }
+                if let Some(v) = general.maintenance_mode_file {
+                    maintenance_mode_file = v
+                }
 
-                // File-based "advanced" options
-                if let Some(advanced) = settings.advanced {
-                    // 1. Custom HTTP headers assignment
-                    let headers_entries = match advanced.headers {
-                        Some(headers_entries) => {
-                            let mut headers_vec: Vec<Headers> = Vec::new();
-
-                            // Compile a glob pattern for each header sources entry
-                            for headers_entry in headers_entries.iter() {
-                                let source = Glob::new(&headers_entry.source)
-                                    .with_context(|| {
-                                        format!(
-                                            "can not compile glob pattern for header source: {}",
-                                            &headers_entry.source
-                                        )
-                                    })?
-                                    .compile_matcher();
-
-                                headers_vec.push(Headers {
-                                    source,
-                                    headers: headers_entry.headers.to_owned(),
-                                });
-                            }
-                            Some(headers_vec)
-                        }
-                        _ => None,
-                    };
-
-                    // 2. Rewrites assignment
-                    let rewrites_entries = match advanced.rewrites {
-                        Some(rewrites_entries) => {
-                            let mut rewrites_vec: Vec<Rewrites> = Vec::new();
-
-                            // Compile a glob pattern for each rewrite sources entry
-                            for rewrites_entry in rewrites_entries.iter() {
-                                let source = Glob::new(&rewrites_entry.source)
-                                    .with_context(|| {
-                                        format!(
-                                            "can not compile glob pattern for rewrite source: {}",
-                                            &rewrites_entry.source
-                                        )
-                                    })?
-                                    .compile_matcher();
-
-                                rewrites_vec.push(Rewrites {
-                                    source,
-                                    destination: rewrites_entry.destination.to_owned(),
-                                });
-                            }
-                            Some(rewrites_vec)
-                        }
-                        _ => None,
-                    };
-
-                    // 3. Redirects assignment
-                    let redirects_entries = match advanced.redirects {
-                        Some(redirects_entries) => {
-                            let mut redirects_vec: Vec<Redirects> = Vec::new();
-
-                            // Compile a glob pattern for each redirect sources entry
-                            for redirects_entry in redirects_entries.iter() {
-                                let source = Glob::new(&redirects_entry.source)
-                                    .with_context(|| {
-                                        format!(
-                                            "can not compile glob pattern for redirect source: {}",
-                                            &redirects_entry.source
-                                        )
-                                    })?
-                                    .compile_matcher();
-
-                                let status_code = redirects_entry.kind.to_owned() as u16;
-                                redirects_vec.push(Redirects {
-                                    source,
-                                    destination: redirects_entry.destination.to_owned(),
-                                    kind: StatusCode::from_u16(status_code).with_context(|| {
-                                        format!("invalid redirect status code: {status_code}")
-                                    })?,
-                                });
-                            }
-                            Some(redirects_vec)
-                        }
-                        _ => None,
-                    };
-
-                    settings_advanced = Some(Advanced {
-                        headers: headers_entries,
-                        rewrites: rewrites_entries,
-                        redirects: redirects_entries,
-                    });
+                // Windows-only options
+                #[cfg(windows)]
+                if let Some(v) = general.windows_service {
+                    windows_service = v
                 }
             }
+
+            // Logging system initialization in config file context
+            if log_init {
+                logger::init(log_level.as_str())?;
+            }
+
+            tracing::debug!("config file read successfully");
+            tracing::debug!("config file path provided: {}", opts.config_file.display());
+            tracing::debug!("config file path resolved: {}", config_file.display());
+
+            if !has_general_settings {
+                server_warn!(
+                    "config file empty or no `general` settings found, using default values"
+                );
+            }
+
+            // File-based "advanced" options
+            if let Some(advanced) = settings.advanced {
+                // 1. Custom HTTP headers assignment
+                let headers_entries = match advanced.headers {
+                    Some(headers_entries) => {
+                        let mut headers_vec: Vec<Headers> = Vec::new();
+
+                        // Compile a glob pattern for each header sources entry
+                        for headers_entry in headers_entries.iter() {
+                            let source = Glob::new(&headers_entry.source)
+                                .with_context(|| {
+                                    format!(
+                                        "can not compile glob pattern for header source: {}",
+                                        &headers_entry.source
+                                    )
+                                })?
+                                .compile_matcher();
+
+                            headers_vec.push(Headers {
+                                source,
+                                headers: headers_entry.headers.to_owned(),
+                            });
+                        }
+                        Some(headers_vec)
+                    }
+                    _ => None,
+                };
+
+                // 2. Rewrites assignment
+                let rewrites_entries = match advanced.rewrites {
+                    Some(rewrites_entries) => {
+                        let mut rewrites_vec: Vec<Rewrites> = Vec::new();
+
+                        // Compile a glob pattern for each rewrite sources entry
+                        for rewrites_entry in rewrites_entries.iter() {
+                            let source = Glob::new(&rewrites_entry.source)
+                                .with_context(|| {
+                                    format!(
+                                        "can not compile glob pattern for rewrite source: {}",
+                                        &rewrites_entry.source
+                                    )
+                                })?
+                                .compile_matcher();
+
+                            let pattern = source
+                                .glob()
+                                .regex()
+                                .trim_start_matches("(?-u)")
+                                .replace("?:.*", ".*")
+                                .to_owned();
+                            tracing::debug!(
+                                "url rewrites glob pattern: {}",
+                                &rewrites_entry.source
+                            );
+                            tracing::debug!("url rewrites regex equivalent: {}", pattern);
+
+                            let source = Regex::new(&pattern).with_context(|| {
+                                    format!(
+                                        "can not compile regex pattern equivalent for rewrite source: {}",
+                                        &pattern
+                                    )
+                                })?;
+
+                            rewrites_vec.push(Rewrites {
+                                source,
+                                destination: rewrites_entry.destination.to_owned(),
+                                redirect: rewrites_entry.redirect.to_owned(),
+                            });
+                        }
+                        Some(rewrites_vec)
+                    }
+                    _ => None,
+                };
+
+                // 3. Redirects assignment
+                let redirects_entries = match advanced.redirects {
+                    Some(redirects_entries) => {
+                        let mut redirects_vec: Vec<Redirects> = Vec::new();
+
+                        // Compile a glob pattern for each redirect sources entry
+                        for redirects_entry in redirects_entries.iter() {
+                            let source = Glob::new(&redirects_entry.source)
+                                .with_context(|| {
+                                    format!(
+                                        "can not compile glob pattern for redirect source: {}",
+                                        &redirects_entry.source
+                                    )
+                                })?
+                                .compile_matcher();
+
+                            let pattern = source
+                                .glob()
+                                .regex()
+                                .trim_start_matches("(?-u)")
+                                .replace("?:.*", ".*")
+                                .to_owned();
+                            tracing::debug!(
+                                "url redirects glob pattern: {}",
+                                &redirects_entry.source
+                            );
+                            tracing::debug!("url redirects regex equivalent: {}", pattern);
+
+                            let source = Regex::new(&pattern).with_context(|| {
+                                    format!(
+                                        "can not compile regex pattern equivalent for redirect source: {}",
+                                        &pattern
+                                    )
+                                })?;
+
+                            let status_code = redirects_entry.kind.to_owned() as u16;
+                            redirects_vec.push(Redirects {
+                                source,
+                                destination: redirects_entry.destination.to_owned(),
+                                kind: StatusCode::from_u16(status_code).with_context(|| {
+                                    format!("invalid redirect status code: {status_code}")
+                                })?,
+                            });
+                        }
+                        Some(redirects_vec)
+                    }
+                    _ => None,
+                };
+
+                // 3. Virtual hosts assignment
+                let vhosts_entries = match advanced.virtual_hosts {
+                    Some(vhosts_entries) => {
+                        let mut vhosts_vec: Vec<VirtualHosts> = Vec::new();
+
+                        for vhosts_entry in vhosts_entries.iter() {
+                            if let Some(root) = vhosts_entry.root.to_owned() {
+                                // Make sure path is valid
+                                let root_dir = helpers::get_valid_dirpath(&root)
+                                    .with_context(|| "root directory for virtual host was not found or inaccessible")?;
+                                tracing::debug!(
+                                    "added virtual host: {} -> {}",
+                                    vhosts_entry.host,
+                                    root_dir.display()
+                                );
+                                vhosts_vec.push(VirtualHosts {
+                                    host: vhosts_entry.host.to_owned(),
+                                    root: root_dir,
+                                });
+                            }
+                        }
+                        Some(vhosts_vec)
+                    }
+                    _ => None,
+                };
+
+                settings_advanced = Some(Advanced {
+                    headers: headers_entries,
+                    rewrites: rewrites_entries,
+                    redirects: redirects_entries,
+                    virtual_hosts: vhosts_entries,
+                });
+            }
+        } else if log_init {
+            // Logging system initialization on demand
+            logger::init(log_level.as_str())?;
         }
 
         Ok(Settings {
@@ -422,6 +538,11 @@ impl Settings {
                 log_remote_address,
                 redirect_trailing_slash,
                 ignore_hidden_files,
+                index_files,
+                health,
+                maintenance_mode,
+                maintenance_mode_status,
+                maintenance_mode_file,
 
                 // Windows-only options and commands
                 #[cfg(windows)]
@@ -432,4 +553,19 @@ impl Settings {
             advanced: settings_advanced,
         })
     }
+}
+
+fn read_file_settings(config_file: &Path) -> Result<Option<(FileSettings, PathBuf)>> {
+    if config_file.is_file() {
+        let file_path_resolved = config_file
+            .canonicalize()
+            .with_context(|| "unable to resolve toml config file path")?;
+
+        let settings = FileSettings::read(&file_path_resolved).with_context(|| {
+            "unable to read toml config file because has invalid format or unsupported options"
+        })?;
+
+        return Ok(Some((settings, file_path_resolved)));
+    }
+    Ok(None)
 }

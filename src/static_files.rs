@@ -10,14 +10,16 @@
 // https://github.com/seanmonstar/warp/blob/master/src/filters/fs.rs
 
 use bytes::{Bytes, BytesMut};
-use futures_util::future::{Either, Future};
-use futures_util::{future, Stream};
+use futures_util::{
+    future,
+    future::{Either, Future},
+    Stream,
+};
 use headers::{
     AcceptRanges, ContentLength, ContentRange, ContentType, HeaderMap, HeaderMapExt, HeaderValue,
     IfModifiedSince, IfRange, IfUnmodifiedSince, LastModified, Range,
 };
-use http::header::CONTENT_LENGTH;
-use hyper::{header::CONTENT_ENCODING, Body, Method, Response, StatusCode};
+use hyper::{header::CONTENT_ENCODING, header::CONTENT_LENGTH, Body, Method, Response, StatusCode};
 use percent_encoding::percent_decode_str;
 use std::fs::{File, Metadata};
 use std::io::{self, BufReader, Read, Seek, SeekFrom};
@@ -34,7 +36,12 @@ use crate::exts::path::PathExt;
 use crate::Result;
 
 #[cfg(feature = "directory-listing")]
-use crate::{directory_listing, directory_listing::DirListFmt};
+use crate::{
+    directory_listing,
+    directory_listing::{DirListFmt, DirListOpts},
+};
+
+const DEFAULT_INDEX_FILES: &[&str; 1] = &["index.html"];
 
 /// Defines all options needed by the static-files handler.
 pub struct HandleOpts<'a> {
@@ -46,6 +53,8 @@ pub struct HandleOpts<'a> {
     pub base_path: &'a PathBuf,
     /// Request base path.
     pub uri_path: &'a str,
+    /// Index files.
+    pub index_files: &'a [&'a str],
     /// Request URI query.
     pub uri_query: Option<&'a str>,
     /// Directory listing feature.
@@ -80,7 +89,6 @@ pub async fn handle<'a>(opts: &HandleOpts<'a>) -> Result<(Response<Body>, bool),
     }
 
     let headers_opt = opts.headers;
-    let compression_static_opt = opts.compression_static;
     let mut file_path = sanitize_path(opts.base_path, uri_path)?;
 
     let FileMetadata {
@@ -88,7 +96,13 @@ pub async fn handle<'a>(opts: &HandleOpts<'a>) -> Result<(Response<Body>, bool),
         metadata,
         is_dir,
         precompressed_variant,
-    } = composed_file_metadata(&mut file_path, headers_opt, compression_static_opt).await?;
+    } = composed_file_metadata(
+        &mut file_path,
+        headers_opt,
+        opts.compression_static,
+        opts.index_files,
+    )
+    .await?;
 
     // Check for a hidden file/directory (dotfile) and ignore it if feature enabled
     if opts.ignore_hidden_files && file_path.is_hidden() {
@@ -98,57 +112,55 @@ pub async fn handle<'a>(opts: &HandleOpts<'a>) -> Result<(Response<Body>, bool),
     // `is_precompressed` relates to `opts.compression_static` value
     let is_precompressed = precompressed_variant.is_some();
 
-    if is_dir {
-        // Check for a trailing slash on the current directory path
-        // and redirect if that path doesn't end with the slash char
-        if opts.redirect_trailing_slash && !uri_path.ends_with('/') {
-            let uri = [uri_path, "/"].concat();
-            let loc = match HeaderValue::from_str(uri.as_str()) {
-                Ok(val) => val,
-                Err(err) => {
-                    tracing::error!("invalid header value from current uri: {:?}", err);
-                    return Err(StatusCode::INTERNAL_SERVER_ERROR);
-                }
-            };
+    // Check for a trailing slash on the current directory path
+    // and redirect if that path doesn't end with the slash char
+    if is_dir && opts.redirect_trailing_slash && !uri_path.ends_with('/') {
+        let uri = [uri_path, "/"].concat();
+        let loc = match HeaderValue::from_str(uri.as_str()) {
+            Ok(val) => val,
+            Err(err) => {
+                tracing::error!("invalid header value from current uri: {:?}", err);
+                return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            }
+        };
 
-            let mut resp = Response::new(Body::empty());
-            resp.headers_mut().insert(hyper::header::LOCATION, loc);
-            *resp.status_mut() = StatusCode::PERMANENT_REDIRECT;
+        let mut resp = Response::new(Body::empty());
+        resp.headers_mut().insert(hyper::header::LOCATION, loc);
+        *resp.status_mut() = StatusCode::PERMANENT_REDIRECT;
 
-            tracing::trace!("uri doesn't end with a slash so redirecting permanently");
-            return Ok((resp, is_precompressed));
-        }
+        tracing::trace!("uri doesn't end with a slash so redirecting permanently");
+        return Ok((resp, is_precompressed));
+    }
 
-        // Respond with the permitted communication options
-        if method.is_options() {
-            let mut resp = Response::new(Body::empty());
-            *resp.status_mut() = StatusCode::NO_CONTENT;
-            resp.headers_mut()
-                .typed_insert(headers::Allow::from_iter(HTTP_SUPPORTED_METHODS.clone()));
-            resp.headers_mut().typed_insert(AcceptRanges::bytes());
+    // Respond with the permitted communication methods
+    if method.is_options() {
+        let mut resp = Response::new(Body::empty());
+        *resp.status_mut() = StatusCode::NO_CONTENT;
+        resp.headers_mut()
+            .typed_insert(headers::Allow::from_iter(HTTP_SUPPORTED_METHODS.clone()));
+        resp.headers_mut().typed_insert(AcceptRanges::bytes());
 
-            return Ok((resp, is_precompressed));
-        }
+        return Ok((resp, is_precompressed));
+    }
 
-        // Directory listing
-        // Check if "directory listing" feature is enabled,
-        // if current path is a valid directory and
-        // if it does not contain an `index.html` file (if a proper auto index is generated)
-        #[cfg(feature = "directory-listing")]
-        if opts.dir_listing && !file_path.exists() {
-            let resp = directory_listing::auto_index(
-                method,
-                uri_path,
-                opts.uri_query,
-                file_path,
-                opts.dir_listing_order,
-                opts.dir_listing_format,
-                opts.ignore_hidden_files,
-            )
-            .await?;
+    // Directory listing
+    // Check if "directory listing" feature is enabled,
+    // if current path is a valid directory and
+    // if it does not contain an `index.html` file (if a proper auto index is generated)
+    #[cfg(feature = "directory-listing")]
+    if is_dir && opts.dir_listing && !file_path.exists() {
+        let resp = directory_listing::auto_index(DirListOpts {
+            method,
+            current_path: uri_path,
+            uri_query: opts.uri_query,
+            filepath: file_path,
+            dir_listing_order: opts.dir_listing_order,
+            dir_listing_format: opts.dir_listing_format,
+            ignore_hidden_files: opts.ignore_hidden_files,
+        })
+        .await?;
 
-            return Ok((resp, is_precompressed));
-        }
+        return Ok((resp, is_precompressed));
     }
 
     // Check for a pre-compressed file variant if present under the `opts.compression_static` context
@@ -212,47 +224,62 @@ async fn composed_file_metadata<'a>(
     mut file_path: &'a mut PathBuf,
     _headers: &'a HeaderMap<HeaderValue>,
     _compression_static: bool,
+    mut index_files: &'a [&'a str],
 ) -> Result<FileMetadata<'a>, StatusCode> {
     tracing::trace!("getting metadata for file {}", file_path.display());
 
     match file_metadata(file_path) {
         Ok((mut metadata, is_dir)) => {
             if is_dir {
-                // Append a HTML index page by default if it's a directory path (`autoindex`)
-                tracing::debug!("dir: appending an index.html to the directory path");
-                file_path.push("index.html");
+                // Try every index file variant in order
+                if index_files.is_empty() {
+                    index_files = DEFAULT_INDEX_FILES;
+                }
+                let mut index_found = false;
+                for index in index_files {
+                    // Append a HTML index page by default if it's a directory path (`autoindex`)
+                    tracing::debug!("dir: appending {} to the directory path", index);
+                    file_path.push(index);
 
-                // Pre-compressed variant check for the autoindex
-                #[cfg(feature = "compression")]
-                if _compression_static {
-                    if let Some(p) =
-                        compression_static::precompressed_variant(file_path, _headers).await
-                    {
-                        return Ok(FileMetadata {
-                            file_path,
-                            metadata: p.metadata,
-                            is_dir: false,
-                            precompressed_variant: Some((p.file_path, p.extension)),
-                        });
+                    // Pre-compressed variant check for the autoindex
+                    #[cfg(feature = "compression")]
+                    if _compression_static {
+                        if let Some(p) =
+                            compression_static::precompressed_variant(file_path, _headers).await
+                        {
+                            return Ok(FileMetadata {
+                                file_path,
+                                metadata: p.metadata,
+                                is_dir: false,
+                                precompressed_variant: Some((p.file_path, p.extension)),
+                            });
+                        }
+                    }
+
+                    // Otherwise, just fallback to finding the index.html
+                    // and overwrite the current `meta`
+                    // Also noting that it's still a directory request
+                    if let Ok(meta_res) = file_metadata(file_path) {
+                        (metadata, _) = meta_res;
+                        index_found = true;
+                        break;
+                    } else {
+                        // We remove only the appended index file
+                        file_path.pop();
+                        let new_meta: Option<Metadata>;
+                        (file_path, new_meta) = suffix_file_html_metadata(file_path);
+                        if let Some(new_meta) = new_meta {
+                            metadata = new_meta;
+                            index_found = true;
+                            break;
+                        }
                     }
                 }
 
-                // Otherwise, just fallback to finding the index.html
-                // and overwrite the current `meta`
-                // Also noting that it's still a directory request
-                if let Ok(meta_res) = file_metadata(file_path) {
-                    (metadata, _) = meta_res
-                } else {
-                    // We remove the appended index.html
-                    file_path.pop();
-                    let new_meta: Option<Metadata>;
-                    (file_path, new_meta) = suffix_file_html_metadata(file_path);
-                    if let Some(new_meta) = new_meta {
-                        metadata = new_meta;
-                    } else {
-                        // We append the index.html to preserve previous behavior
-                        file_path.push("index.html");
-                    }
+                // In case no index was found then we append the last index
+                // of the list to preserve the previous behavior
+                if !index_found && !index_files.is_empty() {
+                    file_path.push(index_files.last().unwrap());
                 }
             } else {
                 // Fallback pre-compressed variant check for the specific file
@@ -510,21 +537,45 @@ impl Conditionals {
 }
 
 #[cfg(unix)]
-const READ_BUF_SIZE: usize = 4_096;
+const DEFAULT_READ_BUF_SIZE: usize = 4_096;
 
 #[cfg(not(unix))]
-const READ_BUF_SIZE: usize = 8_192;
+const DEFAULT_READ_BUF_SIZE: usize = 8_192;
+
+fn optimal_buf_size(metadata: &Metadata) -> usize {
+    let block_size = get_block_size(metadata);
+
+    // If file length is smaller than block size,
+    // don't waste space reserving a bigger-than-needed buffer.
+    std::cmp::min(block_size as u64, metadata.len()) as usize
+}
+
+#[cfg(unix)]
+fn get_block_size(metadata: &Metadata) -> usize {
+    use std::os::unix::fs::MetadataExt;
+    // TODO: blksize() returns u64, should handle bad cast...
+    // (really, a block size bigger than 4gb?)
+
+    // Use device blocksize unless it's really small.
+    std::cmp::max(metadata.blksize() as usize, DEFAULT_READ_BUF_SIZE)
+}
+
+#[cfg(not(unix))]
+fn get_block_size(_metadata: &Metadata) -> usize {
+    DEFAULT_READ_BUF_SIZE
+}
 
 #[derive(Debug)]
 struct FileStream<T> {
     reader: T,
+    buf_size: usize,
 }
 
 impl<T: Read + Unpin> Stream for FileStream<T> {
     type Item = Result<Bytes>;
 
     fn poll_next(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let mut buf = BytesMut::zeroed(READ_BUF_SIZE);
+        let mut buf = BytesMut::zeroed(self.buf_size);
         match Pin::into_inner(self).reader.read(&mut buf[..]) {
             Ok(n) => {
                 if n == 0 {
@@ -551,6 +602,7 @@ async fn response_body(
     match conditionals.check(modified) {
         Cond::NoBody(resp) => Ok(resp),
         Cond::WithBody(range) => {
+            let buf_size = optimal_buf_size(meta);
             bytes_range(range, len)
                 .map(|(start, end)| {
                     match file.seek(SeekFrom::Start(start)) {
@@ -563,7 +615,7 @@ async fn response_body(
 
                     let sub_len = end - start;
                     let reader = BufReader::new(file).take(sub_len);
-                    let stream = FileStream { reader };
+                    let stream = FileStream { reader, buf_size };
 
                     let body = Body::wrap_stream(stream);
                     let mut resp = Response::new(body);
@@ -571,7 +623,17 @@ async fn response_body(
                     if sub_len != len {
                         *resp.status_mut() = StatusCode::PARTIAL_CONTENT;
                         resp.headers_mut().typed_insert(
-                            ContentRange::bytes(start..end, len).expect("valid ContentRange"),
+                            match ContentRange::bytes(start..end, len) {
+                                Ok(range) => range,
+                                Err(err) => {
+                                    tracing::error!("invalid content range error: {:?}", err);
+                                    let mut resp = Response::new(Body::empty());
+                                    *resp.status_mut() = StatusCode::RANGE_NOT_SATISFIABLE;
+                                    resp.headers_mut()
+                                        .typed_insert(ContentRange::unsatisfied_bytes(len));
+                                    return Ok(resp);
+                                }
+                            },
                         );
 
                         len = sub_len;

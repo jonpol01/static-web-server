@@ -130,7 +130,9 @@ pub mod handler;
 #[cfg(feature = "http2")]
 #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
 pub mod https_redirect;
+#[macro_use]
 pub mod logger;
+pub mod maintenance_mode;
 pub mod redirects;
 pub mod rewrites;
 pub mod security_headers;
@@ -145,6 +147,7 @@ pub mod static_files;
 #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
 pub mod tls;
 pub mod transport;
+pub mod virtual_hosts;
 #[cfg(windows)]
 #[cfg_attr(docsrs, doc(cfg(windows)))]
 pub mod winservice;
